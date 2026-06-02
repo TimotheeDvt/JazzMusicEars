@@ -91,8 +91,18 @@ class AudioEngine {
     playMelody(melody) {
         this.init();
         let startNow = this.ctx.currentTime;
+        
+        const mergedMelody = [];
         melody.forEach(note => {
             if (note === 'BAR' || note.type === 'BAR') return;
+            if (note.tied && mergedMelody.length > 0 && mergedMelody[mergedMelody.length - 1].pitch === note.pitch) {
+                mergedMelody[mergedMelody.length - 1].duration += note.duration;
+            } else {
+                mergedMelody.push({ ...note });
+            }
+        });
+
+        mergedMelody.forEach(note => {
             const startTime = startNow + (note.beat * 0.5);
             const seconds = note.duration * 0.5;
             this.playTone(note.pitch, startTime, seconds, "piano", 0.5);
@@ -103,8 +113,17 @@ class AudioEngine {
         this.init();
         let startNow = this.ctx.currentTime;
 
+        const mergedMelody = [];
         melody.forEach(note => {
             if (note === 'BAR' || note.type === 'BAR') return;
+            if (note.tied && mergedMelody.length > 0 && mergedMelody[mergedMelody.length - 1].pitch === note.pitch) {
+                mergedMelody[mergedMelody.length - 1].duration += note.duration;
+            } else {
+                mergedMelody.push({ ...note });
+            }
+        });
+
+        mergedMelody.forEach(note => {
             const startTime = startNow + (note.beat * 0.5);
             const seconds = note.duration * 0.5;
             this.playTone(note.pitch, startTime, seconds, "piano", 0.5);

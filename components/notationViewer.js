@@ -205,6 +205,9 @@ export class NotationViewer extends HTMLElement {
         const barDuration = tsNum * (4 / tsDen);
         let currentBeat = anacrouse > 0 ? (barDuration - anacrouse) : 0;
 
+        let lastDrawnNoteX = null;
+        let lastDrawnNoteY = null;
+
         visibleNotes.forEach((note) => {
             if (note === 'BAR' || note.type === 'BAR') {
                 let barX = noteX - 35;
@@ -218,39 +221,89 @@ export class NotationViewer extends HTMLElement {
             const guitar = this.midiToGuitar(note.pitch);
             const tabY = 150 + ((guitar.stringNum - 1) * 12);
 
-            // Draw Ledger Lines for standard notation
-            if (staffY >= 100) {
-                for (let ly = 100; ly <= staffY; ly += 10) {
-                    svgHtml += `<line x1="${noteX - 12}" y1="${ly}" x2="${noteX + 12}" y2="${ly}" stroke="#0f172a" stroke-width="2"/>`;
-                }
-            } else if (staffY <= 40) {
-                for (let ly = 40; ly >= staffY; ly -= 10) {
-                    svgHtml += `<line x1="${noteX - 12}" y1="${ly}" x2="${noteX + 12}" y2="${ly}" stroke="#0f172a" stroke-width="2"/>`;
-                }
-            }
-
-            // Draw Accidental
+            // Draw Accidental (Once per actual note)
             if (staffInfo.accidental) {
                 const accSymbol = staffInfo.accidental === 'n' ? '♮' : (staffInfo.accidental === 'b' ? '♭' : '♯');
                 svgHtml += `<text x="${noteX - 20}" y="${staffY + 6}" class="accidental-text">${accSymbol}</text>`;
             }
 
-            // Draw Standard Notation Note Head
-            svgHtml += `<circle cx="${noteX}" cy="${staffY}" r="5.5" class="note-head"/>`;
+            // Decompose duration into standard visual components (e.g., 5 becomes a Whole Note tied to a Quarter Note)
+            let remaining = note.duration;
+            let comps = [];
+            [4, 3, 2, 1.5, 1, 0.5].forEach(val => {
+                while (remaining >= val - 0.001) {
+                    comps.push(val);
+                    remaining -= val;
+                }
+            });
+            if (comps.length === 0) comps.push(0.5);
 
-            // Draw Stem direction based on staff position
-            // Center line is B4 (y=70). Notes on or above the center line get downward stems.
-            if (staffY <= 70) {
-                svgHtml += `<line x1="${noteX - 5}" y1="${staffY}" x2="${noteX - 5}" y2="${staffY + 30}" stroke="#0f172a" stroke-width="1.5"/>`;
-            } else {
-                svgHtml += `<line x1="${noteX + 5}" y1="${staffY}" x2="${noteX + 5}" y2="${staffY - 30}" stroke="#0f172a" stroke-width="1.5"/>`;
-            }
+            let compX = noteX;
+            comps.forEach((compDur, idx) => {
+                // Draw Ledger Lines for each component
+                if (staffY >= 100) {
+                    for (let ly = 100; ly <= staffY; ly += 10) {
+                        svgHtml += `<line x1="${compX - 12}" y1="${ly}" x2="${compX + 12}" y2="${ly}" stroke="#0f172a" stroke-width="2"/>`;
+                    }
+                } else if (staffY <= 40) {
+                    for (let ly = 40; ly >= staffY; ly -= 10) {
+                        svgHtml += `<line x1="${compX - 12}" y1="${ly}" x2="${compX + 12}" y2="${ly}" stroke="#0f172a" stroke-width="2"/>`;
+                    }
+                }
+
+                // Tie to previous note if this is a newly tied note
+                if (idx === 0 && note.tied && lastDrawnNoteX !== null) {
+                    const tieDir = staffY <= 70 ? -1 : 1;
+                    const midX = (lastDrawnNoteX + compX) / 2;
+                    svgHtml += `<path d="M${lastDrawnNoteX + 5} ${lastDrawnNoteY + tieDir * 8} Q${midX} ${lastDrawnNoteY + tieDir * 14} ${compX - 5} ${staffY + tieDir * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                }
+                // Tie to previous visual component of the SAME note
+                else if (idx > 0) {
+                    const tieDir = staffY <= 70 ? -1 : 1;
+                    svgHtml += `<path d="M${compX - 35} ${staffY + tieDir * 8} Q${compX - 17.5} ${staffY + tieDir * 14} ${compX - 5} ${staffY + tieDir * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                }
+
+                // Draw Standard Notation Note Head (Hollow for Half/Whole notes)
+                if (compDur >= 2) {
+                    svgHtml += `<circle cx="${compX}" cy="${staffY}" r="5.5" fill="#fff" stroke="#0f172a" stroke-width="2"/>`;
+                } else {
+                    svgHtml += `<circle cx="${compX}" cy="${staffY}" r="5.5" class="note-head"/>`;
+                }
+
+                // Draw Stem direction based on staff position
+                // Center line is B4 (y=70). Notes on or above the center line get downward stems.
+                if (compDur < 4) {
+                    const stemDown = staffY <= 70;
+                    const stemX = stemDown ? compX - 5 : compX + 5;
+                    const stemY2 = stemDown ? staffY + 30 : staffY - 30;
+                    svgHtml += `<line x1="${stemX}" y1="${staffY}" x2="${stemX}" y2="${stemY2}" stroke="#0f172a" stroke-width="1.5"/>`;
+
+                    // Draw Flag for Eighth note (0.5)
+                    if (compDur === 0.5) {
+                        if (stemDown) {
+                            svgHtml += `<path d="M${stemX} ${stemY2} Q${stemX+10} ${stemY2-5} ${stemX+12} ${stemY2-20} Q${stemX+6} ${stemY2-10} ${stemX} ${stemY2-10}" fill="#0f172a"/>`;
+                        } else {
+                            svgHtml += `<path d="M${stemX} ${stemY2} Q${stemX+10} ${stemY2+5} ${stemX+12} ${stemY2+20} Q${stemX+6} ${stemY2+10} ${stemX} ${stemY2+10}" fill="#0f172a"/>`;
+                        }
+                    }
+                }
+
+                // Draw Dot for Dotted notes
+                if (compDur === 3 || compDur === 1.5) {
+                    svgHtml += `<circle cx="${compX + 10}" cy="${staffY}" r="2" class="note-head"/>`;
+                }
+
+                lastDrawnNoteX = compX;
+                lastDrawnNoteY = staffY;
+
+                if (idx < comps.length - 1) compX += 40;
+            });
 
             // Draw Guitar Tab Note Intersection Circle Overlay
             svgHtml += `<circle cx="${noteX}" cy="${tabY}" r="8" fill="#fff"/>`;
             svgHtml += `<text x="${noteX}" y="${tabY + 4}" class="note-text" fill="#000" style="fill: #000; font-size:12px;">${guitar.fret}</text>`;
 
-            noteX += 70; // Step right
+            noteX = compX + 70; // Step right to position the next actual note
             currentBeat += note.duration;
 
             // Draw automatic bar line if we filled the measure
