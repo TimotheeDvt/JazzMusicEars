@@ -25,6 +25,7 @@ class AppController {
         this.notationDisplay = document.getElementById('notation-display');
         this.poolSizeInput = document.getElementById('pool-size');
         this.displayModeSelect = document.getElementById('display-mode');
+        this.keyResetBtn = document.getElementById('key-reset-btn');
 
         // Buttons
         this.playBothBtn = document.getElementById('play-both-btn');
@@ -136,6 +137,7 @@ class AppController {
 
         this.keyDownBtn.addEventListener('click', () => this.shiftKey(-1));
         this.keyUpBtn.addEventListener('click', () => this.shiftKey(1));
+        this.keyResetBtn.addEventListener('click', () => this.resetToOriginalKey());
     }
 
     async initModalList() {
@@ -217,6 +219,28 @@ class AppController {
 
         this.tuneKey.textContent = `Key: ${this.currentTransposedTune.keyName}`;
         this.updateDisplay();
+    }
+
+    resetToOriginalKey() {
+        if (!this.currentOriginalTune) return;
+
+        // Reset loops
+        audioEngine.stopChordsLoop();
+        this.toggleChordsBtn.textContent = "Loop Chords: OFF";
+        this.toggleChordsBtn.classList.remove('primary');
+
+        // Extract absolute original key target
+        const origRootMatch = this.currentOriginalTune.originalKey.match(/^[A-G][#b]?/i);
+        const origRoot = origRootMatch ? origRootMatch[0].toUpperCase() : 'C';
+        const origIdx = KEYS.findIndex(k => k.name === origRoot);
+
+        if (origIdx !== -1) {
+            this.currentTargetKeyIdx = origIdx;
+            const targetKey = KEYS[this.currentTargetKeyIdx];
+            this.currentTransposedTune = this.transposeTune(this.currentOriginalTune, targetKey);
+            this.tuneKey.textContent = `Key: ${this.currentTransposedTune.keyName}`;
+            this.updateDisplay();
+        }
     }
 
     async loadNextTune() {
