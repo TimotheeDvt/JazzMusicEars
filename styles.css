@@ -152,8 +152,14 @@ input[type="number"] {
 
 .grid-controls {
     display: flex;
-    justify-content: space-between;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 .control-group h3 {
@@ -171,6 +177,11 @@ input[type="number"] {
     cursor: pointer;
     transition: background 0.2s;
     margin: 0.25rem;
+}
+
+.control-group .btn {
+    width: 100%;
+    margin: 0;
 }
 
 .btn.primary {
