@@ -208,7 +208,8 @@ class AudioEngine {
             "7": [0, 4, 7, 10],
             "m7": [0, 3, 7, 10],
             "m6": [0, 3, 7, 9],
-            "7b9": [0, 4, 10, 13]
+            "7b9": [0, 4, 10, 13],
+            "m7b5": [0, 3, 6, 10]
         };
         const intervals = voicings[type] || [0, 4, 7];
         return intervals.map(interval => root + interval);
