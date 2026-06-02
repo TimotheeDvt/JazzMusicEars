@@ -10,6 +10,7 @@ class AppController {
         // App State
         this.currentOriginalTune = null;
         this.currentTransposedTune = null;
+        this.currentTargetKeyIdx = 0;
         this.selectedTuneIds = [...jazzStandards]; // All selected by default
         this.poolSize = 10;
         this.revealMelodyState = 'empty';
@@ -18,6 +19,8 @@ class AppController {
         // Cache DOM Elements
         this.tuneTitle = document.getElementById('tune-title');
         this.tuneKey = document.getElementById('tune-key');
+        this.keyDownBtn = document.getElementById('key-down-btn');
+        this.keyUpBtn = document.getElementById('key-up-btn');
         this.notationDisplay = document.getElementById('notation-display');
         this.poolSizeInput = document.getElementById('pool-size');
 
@@ -116,6 +119,9 @@ class AppController {
         this.exportBtn.addEventListener('click', () => this.exportConfidenceData());
         this.importBtn.addEventListener('click', () => this.fileInput.click());
         this.fileInput.addEventListener('change', (e) => this.importConfidenceData(e));
+
+        this.keyDownBtn.addEventListener('click', () => this.shiftKey(-1));
+        this.keyUpBtn.addEventListener('click', () => this.shiftKey(1));
     }
 
     async initModalList() {
@@ -168,6 +174,25 @@ class AppController {
         };
     }
 
+    shiftKey(direction) {
+        if (!this.currentOriginalTune) return;
+
+        // Reset loops
+        audioEngine.stopChordsLoop();
+        this.toggleChordsBtn.textContent = "Loop Chords: OFF";
+        this.toggleChordsBtn.classList.remove('primary');
+
+        this.currentTargetKeyIdx += direction;
+        if (this.currentTargetKeyIdx < 0) this.currentTargetKeyIdx = KEYS.length - 1;
+        if (this.currentTargetKeyIdx >= KEYS.length) this.currentTargetKeyIdx = 0;
+
+        const targetKey = KEYS[this.currentTargetKeyIdx];
+        this.currentTransposedTune = this.transposeTune(this.currentOriginalTune, targetKey);
+
+        this.tuneKey.textContent = `Key: ${this.currentTransposedTune.keyName}`;
+        this.updateDisplay();
+    }
+
     async loadNextTune() {
         // Reset ongoing loops
         audioEngine.stopChordsLoop();
@@ -194,8 +219,8 @@ class AppController {
             this.currentOriginalTune = targetTune;
 
             // Pick absolute random key target context
-            const randomKeyIdx = Math.floor(Math.random() * KEYS.length);
-            const randomTargetKey = KEYS[randomKeyIdx];
+            this.currentTargetKeyIdx = Math.floor(Math.random() * KEYS.length);
+            const randomTargetKey = KEYS[this.currentTargetKeyIdx];
 
             this.currentTransposedTune = this.transposeTune(targetTune, randomTargetKey);
 

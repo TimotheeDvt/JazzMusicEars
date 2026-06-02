@@ -112,6 +112,32 @@ input[type="number"] {
     margin: 0;
 }
 
+.key-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.key-buttons {
+    display: flex;
+    flex-direction: column;
+}
+
+.key-btn {
+    padding: 0 0.4rem !important;
+    font-size: 0.8rem;
+    margin: 0 !important;
+    line-height: 1.2;
+}
+
+.key-btn:first-child {
+    border-radius: var(--radius) var(--radius) 0 0 !important;
+}
+
+.key-btn:last-child {
+    border-radius: 0 0 var(--radius) var(--radius) !important;
+}
+
 .notation-container {
     flex: 1;
     min-height: 0;
