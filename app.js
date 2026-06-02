@@ -149,8 +149,18 @@ class AppController {
     }
 
     transposeTune(tune, targetKey) {
-        // Compute structural shift semitones step interval
-        const randomShift = targetKey.shift;
+        // Find the original key's root shift to calculate relative transposition
+        const origRootMatch = tune.originalKey.match(/^[A-G][#b]?/i);
+        const origRoot = origRootMatch ? origRootMatch[0].toUpperCase() : 'C';
+        const origKeyObj = KEYS.find(k => k.name === origRoot);
+        const originalShift = origKeyObj ? origKeyObj.shift : 0;
+
+        // Compute structural shift semitones step interval relative to original key
+        let randomShift = targetKey.shift - originalShift;
+
+        // Keep shift within a shortest-distance octave range to prevent notes going too high/low
+        if (randomShift > 6) randomShift -= 12;
+        if (randomShift < -5) randomShift += 12;
 
         const transposedMelody = tune.melody.map(note => {
             if (note === 'BAR' || note.type === 'BAR') return note;
@@ -163,7 +173,7 @@ class AppController {
         }));
 
         // Dynamically compute key suffix descriptor string
-        const isMinor = tune.originalKey.toLowerCase().includes('min');
+        const isMinor = tune.originalKey.toLowerCase().includes('min') || tune.originalKey.toLowerCase().includes('m');
         const keyDisplayName = `${targetKey.name}${isMinor ? 'm' : ''}`;
 
         return {
@@ -223,6 +233,7 @@ class AppController {
             // Pick absolute random key target context
             this.currentTargetKeyIdx = Math.floor(Math.random() * KEYS.length);
             const randomTargetKey = KEYS[this.currentTargetKeyIdx];
+            // const randomTargetKey = { name: this.currentOriginalTune.originalKey, shift: 0}
 
             this.currentTransposedTune = this.transposeTune(targetTune, randomTargetKey);
 

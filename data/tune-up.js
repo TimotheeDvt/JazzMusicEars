@@ -1,17 +1,14 @@
+import { parseMelodyString, parseChordsString } from './tunes.js';
+
+const originalKey = "Dmaj";
+
 export const tune = {
     id: "tune-up",
     title: "Tune Up",
-    originalKey: "Dmaj",
-    melody: [
-        { pitch: 69, duration: 2 }, // A
-        { pitch: 67, duration: 1 }, // G
-        { pitch: 66, duration: 1 }, // F#
-        { pitch: 64, duration: 4 }  // E
-    ],
-    chords: [
-        { root: 62, type: "m7", duration: 4 },  // Em7
-        { root: 62, type: "7", duration: 4 },   // A7
-        { root: 62, type: "maj7", duration: 8 } // Dmaj7
-    ],
+    originalKey: originalKey,
+
+    melody: parseMelodyString("A4:2 G4:1 F4:1 E4:4", originalKey),
+    chords: parseChordsString("E4:m7:4 A4:7:4 D4:maj7:8"),
+
     youtube: "https://www.youtube.com/watch?v=3g8K9gXitb0"
 };

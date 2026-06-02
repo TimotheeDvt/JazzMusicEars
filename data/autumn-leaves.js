@@ -1,26 +1,17 @@
+import { parseMelodyString, parseChordsString } from './tunes.js';
+
+const originalKey = "Emin";
+
 export const tune = {
     id: "autumn-leaves",
     title: "Autumn Leaves",
-    originalKey: "Gmin", // G minor / Bb major
+    originalKey: originalKey, // E minor / G major
     timeSignature: [4, 4], // 4/4
-    anacrouse: 3, // 0 quarter note
-    // Simple relative MIDI pitches assuming C major/A minor reference for easy tracking
-    // We'll define them relative to a base pitch or just absolute MIDI values in original key:
-    melody: [
-        { pitch: 60, duration: 1 }, // C
-        { pitch: 62, duration: 1 }, // D
-        { pitch: 63, duration: 1 }, // Eb
-        { pitch: 67, duration: 2 }, // G
-        { pitch: 59, duration: 1 }, // B
-        { pitch: 60, duration: 1 }, // C
-        { pitch: 62, duration: 1 }, // D
-        { pitch: 65, duration: 2 }  // F
-    ],
-    chords: [
-        { root: 60, type: "m7", duration: 4 },  // Cm7
-        { root: 65, type: "7", duration: 4 },   // F7
-        { root: 70, type: "maj7", duration: 4 },// Bbmaj7
-        { root: 65, type: "maj7", duration: 4 } // Ebmaj7
-    ],
+    anacrouse: 3, // 3 quarter notes
+
+    // Easy String Formatting (Note:Duration)
+    melody: parseMelodyString("E4:1 F#4:1 G4:1 | C5:4 | D4:1 E4:1 F#4:1 | B4:4 | C4:1 D4:1 E4:1 | A4:4", originalKey),
+    chords: parseChordsString("A3:m7:4 D4:7:4 G3:maj7:4 C4:maj7:4 F#3:m7b5:4 B3:7:4 E3:m7:4"),
+
     youtube: "https://www.youtube.com/watch?v=8K1O3w6hy_0"
-}
+};

@@ -1,18 +1,14 @@
+import { parseMelodyString, parseChordsString } from './tunes.js';
+
+const originalKey = "Amin";
+
 export const tune = {
     id: "summertime",
     title: "Summertime",
-    originalKey: "Amin",
-    melody: [
-        { pitch: 64, duration: 2 }, // E
-        { pitch: 60, duration: 1 }, // C
-        { pitch: 64, duration: 1 }, // E
-        { pitch: 62, duration: 4 }  // D
-    ],
-    chords: [
-        { root: 57, type: "m6", duration: 4 },  // Am6
-        { root: 64, type: "7b9", duration: 4 }, // E7b9
-        { root: 57, type: "m6", duration: 4 },  // Am6
-        { root: 57, type: "m6", duration: 4 }   // Am6
-    ],
+    originalKey: originalKey,
+
+    melody: parseMelodyString("E4:2 C4:1 E4:1 D4:4", originalKey),
+    chords: parseChordsString("A3:m6:4 E4:7b9:4 A3:m6:4 A3:m6:4"),
+
     youtube: "https://www.youtube.com/watch?v=xivm6BiV3O0"
 };
