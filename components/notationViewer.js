@@ -365,6 +365,7 @@ export class NotationViewer extends HTMLElement {
                     .chord-label { font-family: 'Kalam', cursive; font-size: 20px; font-weight: bold; fill: #4f46e5; text-anchor: middle; }
                     .time-sig-text { font-family: 'Kalam', cursive; font-size: 32px; font-weight: bold; fill: #1e293b; text-anchor: middle; }
                     .bar-line { stroke: #334155; stroke-width: 2; }
+                    text { user-select: none; -webkit-user-select: none; }
                 </style>
                 <text x="${WIDTH / 2}" y="50" font-family="'Kalam', cursive" font-size="42" font-weight="bold" fill="#1e293b" text-anchor="middle">${this.state.title}</text>
         `;
@@ -676,7 +677,7 @@ export class NotationViewer extends HTMLElement {
             <style>
                 :host { display: block; width: 100%; height: 100%; min-height: 0; }
                 .score-wrapper { width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 10px; box-sizing: border-box; }
-                svg { margin: 0 auto; display: block; }
+                svg { margin: 0 auto; display: block; user-select: none; -webkit-user-select: none; }
             </style>
             <div class="score-wrapper">
                 ${this.generateSVG()}

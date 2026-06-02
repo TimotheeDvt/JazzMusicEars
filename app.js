@@ -295,11 +295,11 @@ class AppController {
 
     seekAndPlay(startBeat) {
         if (!this.currentTransposedTune) return;
-        
+
         const mode = this.activePlayback || 'both'; // Default to playing both if playback is fully stopped
-        
+
         this.stopPlayback();
-        
+
         if (mode === 'both') {
             this.activePlayback = 'both';
             this.playBothBtn.textContent = "Stop Both";
@@ -329,7 +329,7 @@ class AppController {
         const startTime = audioEngine.ctx.currentTime;
         const animate = () => {
             if (!this.activePlayback) return;
-            
+
             const elapsed = audioEngine.ctx.currentTime - startTime;
             let currentBeat = startBeat + (elapsed / audioEngine.secPerBeat);
 
