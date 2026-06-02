@@ -12,7 +12,9 @@ export class NotationViewer extends HTMLElement {
             melody: [],
             chords: [],
             revealMelody: 'empty', // 'empty' | 'first' | 'full'
-            revealChords: false
+            revealChords: false,
+            timeSignature: [4, 4],
+            anacrouse: 0
         };
     }
 
@@ -24,8 +26,8 @@ export class NotationViewer extends HTMLElement {
         this.render();
     }
 
-    updateData(title, key, melody, chords, revealMelody = 'empty', revealChords = false) {
-        this.state = { title, key, melody, chords, revealMelody, revealChords };
+    updateData(title, key, melody, chords, revealMelody = 'empty', revealChords = false, timeSignature = [4, 4], anacrouse = 0) {
+        this.state = { title, key, melody, chords, revealMelody, revealChords, timeSignature, anacrouse };
         this.render();
     }
 
@@ -118,13 +120,14 @@ export class NotationViewer extends HTMLElement {
     }
 
     generateSVG() {
-        const { melody, chords, revealMelody, revealChords, key } = this.state;
+        const { melody, chords, revealMelody, revealChords, key, timeSignature, anacrouse } = this.state;
 
         let visibleNotes = [];
         let visibleChords = [];
 
         if (revealMelody === 'first' && melody.length > 0) {
-            visibleNotes = [melody[0]];
+            const firstNote = melody.find(n => n !== 'BAR' && n.type !== 'BAR');
+            if (firstNote) visibleNotes = [firstNote];
         } else if (revealMelody === 'full') {
             visibleNotes = melody;
         }
@@ -146,6 +149,7 @@ export class NotationViewer extends HTMLElement {
                     .note-text { font-family: sans-serif; font-size: 11px; font-weight: bold; fill: #fff; text-anchor: middle; }
                     .accidental-text { font-family: serif; font-size: 20px; font-weight: bold; fill: #0f172a; }
                     .chord-label { font-family: sans-serif; font-size: 16px; font-weight: bold; fill: #4f46e5; text-anchor: middle; }
+                    .time-sig-text { font-family: serif; font-size: 26px; font-weight: bold; fill: #1e293b; text-anchor: middle; }
                     .bar-line { stroke: #334155; stroke-width: 2; }
                 </style>
         `;
@@ -177,7 +181,15 @@ export class NotationViewer extends HTMLElement {
             svgHtml += `<text x="${kx}" y="${acc.y + 6}" class="accidental-text">${acc.symbol}</text>`;
             kx += 12;
         });
-        const startX = Math.max(100, kx + 20);
+        
+        // --- DRAW TIME SIGNATURE ---
+        let tsX = Math.max(70, kx + 15);
+        const tsNum = Array.isArray(timeSignature) ? timeSignature[0] : 4;
+        const tsDen = Array.isArray(timeSignature) ? timeSignature[1] : 4;
+        svgHtml += `<text x="${tsX}" y="68" class="time-sig-text">${tsNum}</text>`;
+        svgHtml += `<text x="${tsX}" y="88" class="time-sig-text">${tsDen}</text>`;
+
+        const startX = tsX + 30;
 
         // --- RENDER REVEALED CHORDS ---
         let chordX = startX;
@@ -190,7 +202,18 @@ export class NotationViewer extends HTMLElement {
 
         // --- RENDER REVEALED MELODY NOTES ---
         let noteX = startX;
+        
+        const barDuration = tsNum * (4 / tsDen);
+        let currentBeat = anacrouse > 0 ? (barDuration - anacrouse) : 0;
+
         visibleNotes.forEach((note) => {
+            if (note === 'BAR' || note.type === 'BAR') {
+                let barX = noteX - 35;
+                svgHtml += `<line x1="${barX}" y1="50" x2="${barX}" y2="210" class="bar-line"/>`;
+                currentBeat = 0;
+                return;
+            }
+
             const staffInfo = this.midiToStaffInfo(note.pitch, key);
             const staffY = staffInfo.y;
             const guitar = this.midiToGuitar(note.pitch);
@@ -222,6 +245,14 @@ export class NotationViewer extends HTMLElement {
             svgHtml += `<text x="${noteX}" y="${tabY + 4}" class="note-text" fill="#000" style="fill: #000; font-size:12px;">${guitar.fret}</text>`;
 
             noteX += 70; // Step right
+            currentBeat += note.duration;
+
+            // Draw automatic bar line if we filled the measure
+            if (currentBeat >= barDuration - 0.001) {
+                let barX = noteX - 35;
+                svgHtml += `<line x1="${barX}" y1="50" x2="${barX}" y2="210" class="bar-line"/>`;
+                currentBeat -= barDuration;
+            }
         });
 
         svgHtml += `</svg>`;

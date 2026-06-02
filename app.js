@@ -152,10 +152,10 @@ class AppController {
         // Compute structural shift semitones step interval
         const randomShift = targetKey.shift;
 
-        const transposedMelody = tune.melody.map(note => ({
-            ...note,
-            pitch: note.pitch + randomShift
-        }));
+        const transposedMelody = tune.melody.map(note => {
+            if (note === 'BAR' || note.type === 'BAR') return note;
+            return { ...note, pitch: note.pitch + randomShift };
+        });
 
         const transposedChords = tune.chords.map(chord => ({
             ...chord,
@@ -170,7 +170,9 @@ class AppController {
             title: tune.title,
             keyName: keyDisplayName,
             melody: transposedMelody,
-            chords: transposedChords
+            chords: transposedChords,
+            timeSignature: tune.timeSignature || [4, 4],
+            anacrouse: tune.anacrouse || 0
         };
     }
 
@@ -256,7 +258,9 @@ class AppController {
             this.currentTransposedTune.melody,
             this.currentTransposedTune.chords,
             this.revealMelodyState,
-            this.revealChordsState
+            this.revealChordsState,
+            this.currentTransposedTune.timeSignature,
+            this.currentTransposedTune.anacrouse
         );
     }
 

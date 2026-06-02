@@ -2,6 +2,8 @@ export const tune = {
     id: "autumn-leaves",
     title: "Autumn Leaves",
     originalKey: "Gmin", // G minor / Bb major
+    timeSignature: [4, 4], // 4/4
+    anacrouse: 3, // 0 quarter note
     // Simple relative MIDI pitches assuming C major/A minor reference for easy tracking
     // We'll define them relative to a base pitch or just absolute MIDI values in original key:
     melody: [

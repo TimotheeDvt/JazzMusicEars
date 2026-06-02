@@ -44,6 +44,7 @@ class AudioEngine {
         this.init();
         let now = this.ctx.currentTime;
         melody.forEach(note => {
+            if (note === 'BAR' || note.type === 'BAR') return;
             // Adjust time duration (assuming 1 unit = 0.5 seconds at ~120 BPM)
             const seconds = note.duration * 0.5;
             this.playTone(note.pitch, now, seconds, "triangle", 0.4);
