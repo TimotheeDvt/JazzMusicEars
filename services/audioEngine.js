@@ -19,8 +19,56 @@ class AudioEngine {
         return 440 * Math.pow(2, (midi - 69) / 12);
     }
 
-    playTone(midi, startTime, duration, type = "sine", volume = 0.3) {
+    playTone(midi, startTime, duration, type = "piano", volume = 0.3) {
         this.init();
+
+        if (type === "piano") {
+            const freq = this.midiToFreq(midi);
+
+            // Combine 3 oscillators for a rich, string-like harmonic body
+            const osc1 = this.ctx.createOscillator(); osc1.type = 'triangle';
+            const osc2 = this.ctx.createOscillator(); osc2.type = 'sine';
+            const osc3 = this.ctx.createOscillator(); osc3.type = 'sawtooth';
+
+            osc1.frequency.value = freq;
+            osc2.frequency.value = freq;
+            osc3.frequency.value = freq * 1.001; // Tiny detune for realism/chorus
+
+            const mixGain1 = this.ctx.createGain(); mixGain1.gain.value = 1.0;
+            const mixGain2 = this.ctx.createGain(); mixGain2.gain.value = 0.5;
+            const mixGain3 = this.ctx.createGain(); mixGain3.gain.value = 0.15;
+
+            osc1.connect(mixGain1); osc2.connect(mixGain2); osc3.connect(mixGain3);
+
+            // Low-pass filter to dampen the harshness and simulate a struck string
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+
+            // Strictly sequenced time envelopes to prevent API overlap errors
+            const attackTime = startTime + Math.min(0.015, duration * 0.1);
+            const sustainTime = attackTime + Math.min(0.3, duration * 0.5);
+
+            filter.frequency.setValueAtTime(freq * 5, startTime);
+            filter.frequency.exponentialRampToValueAtTime(Math.max(freq * 1.5, 100), sustainTime);
+
+            mixGain1.connect(filter); mixGain2.connect(filter); mixGain3.connect(filter);
+
+            // Piano ADSR Gain Envelope
+            const masterGain = this.ctx.createGain();
+            masterGain.gain.setValueAtTime(0, startTime);
+            masterGain.gain.linearRampToValueAtTime(volume, attackTime); // Fast hammer strike
+            masterGain.gain.exponentialRampToValueAtTime(Math.max(volume * 0.2, 0.001), sustainTime); // Ring decay
+            masterGain.gain.exponentialRampToValueAtTime(0.001, startTime + duration); // Release
+
+            filter.connect(masterGain);
+            masterGain.connect(this.ctx.destination);
+
+            osc1.start(startTime); osc2.start(startTime); osc3.start(startTime);
+            osc1.stop(startTime + duration); osc2.stop(startTime + duration); osc3.stop(startTime + duration);
+            return;
+        }
+
+        // Fallback for simple wave synthesis
         const osc = this.ctx.createOscillator();
         const gainNode = this.ctx.createGain();
 
@@ -47,19 +95,19 @@ class AudioEngine {
             if (note === 'BAR' || note.type === 'BAR') return;
             const startTime = startNow + (note.beat * 0.5);
             const seconds = note.duration * 0.5;
-            this.playTone(note.pitch, startTime, seconds, "triangle", 0.4);
+            this.playTone(note.pitch, startTime, seconds, "piano", 0.5);
         });
     }
 
     playBoth(melody, chords) {
         this.init();
         let startNow = this.ctx.currentTime;
-        
+
         melody.forEach(note => {
             if (note === 'BAR' || note.type === 'BAR') return;
             const startTime = startNow + (note.beat * 0.5);
             const seconds = note.duration * 0.5;
-            this.playTone(note.pitch, startTime, seconds, "triangle", 0.4);
+            this.playTone(note.pitch, startTime, seconds, "piano", 0.5);
         });
 
         chords.forEach(chord => {
@@ -67,9 +115,9 @@ class AudioEngine {
             const seconds = chord.duration * 0.5;
             const pitches = this.getChordPitches(chord.root, chord.type);
 
+            this.playTone(chord.root - 12, startTime, seconds, "piano", 0.25); // Bass Root
             pitches.forEach(pitch => {
-                this.playTone(pitch - 12, startTime, seconds, "sine", 0.15);
-                this.playTone(pitch, startTime, seconds, "sine", 0.12);
+                this.playTone(pitch, startTime, seconds, "piano", 0.15); // Chord Voicings
             });
         });
     }
@@ -99,10 +147,9 @@ class AudioEngine {
                 const seconds = chord.duration * 0.5;
                 const pitches = this.getChordPitches(chord.root, chord.type);
 
+                this.playTone(chord.root - 12, startTime, seconds, "piano", 0.25); // Bass Root
                 pitches.forEach(pitch => {
-                    // Soft warmth via sawtooth filters or low sine/triangle blends
-                    this.playTone(pitch - 12, startTime, seconds, "sine", 0.15); // Add lower octave root
-                    this.playTone(pitch, startTime, seconds, "sine", 0.12);
+                    this.playTone(pitch, startTime, seconds, "piano", 0.15); // Chord Voicings
                 });
             });
         };
@@ -110,7 +157,7 @@ class AudioEngine {
         // Calculate full length of chart to loop cleanly
         const lastChord = chords[chords.length - 1];
         const totalDurationMs = lastChord ? (lastChord.beat + lastChord.duration) * 500 : 0;
-        
+
         if (totalDurationMs > 0) {
             playIteration();
             this.chordIntervalId = setInterval(playIteration, totalDurationMs);
