@@ -42,32 +42,83 @@ export class NotationViewer extends HTMLElement {
         return { stringNum: 1, fret: 0 }; // Fallback
     }
 
-    // Convert MIDI pitch to programmatic vertical Y position offset on standard Treble Clef staff line
-    midiToStaffY(midi) {
-        // Center line is B4 (MIDI 71)
-        const semitoneToStaffStep = {
-            59: 5,  // B3
-            60: 4,  // C4
-            62: 3,  // D4
-            64: 2,  // E4
-            65: 1,  // F4
-            67: 0,  // G4
-            69: -1, // A4
-            71: -2, // B4
-            72: -3, // C5
-            74: -4, // D5
-            76: -5, // E5
-            77: -6, // F5
-            79: -7  // G5
+    // Get standard key signature properties based on scale name
+    getKeySignature(keyName) {
+        const sharps = [50, 65, 45, 60, 75, 55, 70]; // F, C, G, D, A, E, B
+        const flats = [70, 55, 75, 60, 80, 65, 85];  // B, E, A, D, G, C, F
+
+        const keyMap = {
+            "C": 0, "Am": 0, "G": 1, "Em": 1, "D": 2, "Bm": 2,
+            "A": 3, "F#m": 3, "E": 4, "C#m": 4, "B": 5, "G#m": 5,
+            "F#": 6, "F": -1, "Dm": -1, "A#": -2, "Gm": -2,
+            "D#": -3, "Cm": -3, "G#": -4, "Fm": -4, "C#": -5,
+            "A#m": -5, "D#m": -6
         };
 
-        // Find closest matching baseline step
-        const matchedStep = semitoneToStaffStep[midi] !== undefined ? semitoneToStaffStep[midi] : 0;
-        return 70 + (matchedStep * 8);
+        let sig = keyMap[keyName] || 0;
+        let accidentals = [];
+
+        if (sig > 0) {
+            for (let i = 0; i < sig; i++) accidentals.push({ symbol: '♯', y: sharps[i] });
+        } else if (sig < 0) {
+            for (let i = 0; i < Math.abs(sig); i++) accidentals.push({ symbol: '♭', y: flats[i] });
+        }
+
+        return accidentals;
+    }
+
+    // Convert MIDI pitch to Staff Y position, including accidental tracking
+    midiToStaffInfo(midi, keyName) {
+        // Identify keys that favor flat notation
+        const flatKeys = ["F", "A#", "D#", "G#", "C#", "Dm", "Gm", "Cm", "Fm", "A#m", "D#m"];
+        const isFlat = flatKeys.some(k => keyName === k || keyName.startsWith(k + "m")) || (keyName && keyName.includes('b'));
+
+        const flatMappings = [
+            { s: 0, a: '' }, { s: 1, a: 'b' }, { s: 1, a: '' }, { s: 2, a: 'b' },
+            { s: 2, a: '' }, { s: 3, a: '' }, { s: 4, a: 'b' }, { s: 4, a: '' },
+            { s: 5, a: 'b' }, { s: 5, a: '' }, { s: 6, a: 'b' }, { s: 6, a: '' }
+        ];
+        const sharpMappings = [
+            { s: 0, a: '' }, { s: 0, a: '#' }, { s: 1, a: '' }, { s: 1, a: '#' },
+            { s: 2, a: '' }, { s: 3, a: '' }, { s: 3, a: '#' }, { s: 4, a: '' },
+            { s: 4, a: '#' }, { s: 5, a: '' }, { s: 5, a: '#' }, { s: 6, a: '' }
+        ];
+
+        const pc = midi % 12;
+        const octave = Math.floor(midi / 12) - 1;
+        const mapping = isFlat ? flatMappings[pc] : sharpMappings[pc];
+
+        // Key Signature logic to suppress/add accidentals
+        const keyMap = {
+            "C": 0, "Am": 0, "G": 1, "Em": 1, "D": 2, "Bm": 2,
+            "A": 3, "F#m": 3, "E": 4, "C#m": 4, "B": 5, "G#m": 5, "F#": 6,
+            "F": -1, "Dm": -1, "A#": -2, "Gm": -2, "D#": -3, "Cm": -3,
+            "G#": -4, "Fm": -4, "C#": -5, "A#m": -5, "D#m": -6
+        };
+        const sig = keyMap[keyName] || 0;
+        const keyAccidentals = {};
+        if (sig > 0) {
+            const sharpsOrder = [3, 0, 4, 1, 5, 2, 6]; // F, C, G, D, A, E, B
+            for (let i = 0; i < sig; i++) keyAccidentals[sharpsOrder[i]] = '#';
+        } else if (sig < 0) {
+            const flatsOrder = [6, 2, 5, 1, 4, 0, 3]; // B, E, A, D, G, C, F
+            for (let i = 0; i < Math.abs(sig); i++) keyAccidentals[flatsOrder[i]] = 'b';
+        }
+
+        let finalAccidental = mapping.a;
+        if (keyAccidentals[mapping.s]) {
+            if (mapping.a === keyAccidentals[mapping.s]) finalAccidental = ''; // Suppress, already in key sig
+            else if (mapping.a === '') finalAccidental = 'n'; // Needs natural sign
+        }
+
+        const totalStepsFromC4 = (octave - 4) * 7 + mapping.s;
+        const y = 100 - (totalStepsFromC4 * 5); // 5 SVG units per diatonic staff step
+
+        return { y, accidental: finalAccidental };
     }
 
     generateSVG() {
-        const { melody, chords, revealMelody, revealChords } = this.state;
+        const { melody, chords, revealMelody, revealChords, key } = this.state;
 
         let visibleNotes = [];
         let visibleChords = [];
@@ -93,6 +144,7 @@ export class NotationViewer extends HTMLElement {
                     .tab-text { font-family: 'Arial Concrete', sans-serif; font-size: 20px; font-weight: 900; fill: #64748b; }
                     .note-head { fill: #0f172a; }
                     .note-text { font-family: sans-serif; font-size: 11px; font-weight: bold; fill: #fff; text-anchor: middle; }
+                    .accidental-text { font-family: serif; font-size: 20px; font-weight: bold; fill: #0f172a; }
                     .chord-label { font-family: sans-serif; font-size: 16px; font-weight: bold; fill: #4f46e5; text-anchor: middle; }
                     .bar-line { stroke: #334155; stroke-width: 2; }
                 </style>
@@ -118,8 +170,17 @@ export class NotationViewer extends HTMLElement {
         svgHtml += `<line x1="20" y1="50" x2="20" y2="210" class="bar-line"/>`;
         svgHtml += `<line x1="${width - 20}" y1="50" x2="${width - 20}" y2="210" class="bar-line"/>`;
 
+        // --- DRAW KEY SIGNATURE ---
+        const keySig = this.getKeySignature(key);
+        let kx = 55;
+        keySig.forEach(acc => {
+            svgHtml += `<text x="${kx}" y="${acc.y + 6}" class="accidental-text">${acc.symbol}</text>`;
+            kx += 12;
+        });
+        const startX = Math.max(100, kx + 20);
+
         // --- RENDER REVEALED CHORDS ---
-        let chordX = 100;
+        let chordX = startX;
         const rootNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
         visibleChords.forEach((chord) => {
             const name = rootNames[chord.root % 12] + chord.type;
@@ -128,11 +189,29 @@ export class NotationViewer extends HTMLElement {
         });
 
         // --- RENDER REVEALED MELODY NOTES ---
-        let noteX = 100;
+        let noteX = startX;
         visibleNotes.forEach((note) => {
-            const staffY = this.midiToStaffY(note.pitch);
+            const staffInfo = this.midiToStaffInfo(note.pitch, key);
+            const staffY = staffInfo.y;
             const guitar = this.midiToGuitar(note.pitch);
             const tabY = 150 + ((guitar.stringNum - 1) * 12);
+
+            // Draw Ledger Lines for standard notation
+            if (staffY >= 100) {
+                for (let ly = 100; ly <= staffY; ly += 10) {
+                    svgHtml += `<line x1="${noteX - 8}" y1="${ly}" x2="${noteX + 8}" y2="${ly}" stroke="#0f172a" stroke-width="1.5"/>`;
+                }
+            } else if (staffY <= 40) {
+                for (let ly = 40; ly >= staffY; ly -= 10) {
+                    svgHtml += `<line x1="${noteX - 8}" y1="${ly}" x2="${noteX + 8}" y2="${ly}" stroke="#0f172a" stroke-width="1.5"/>`;
+                }
+            }
+
+            // Draw Accidental
+            if (staffInfo.accidental) {
+                const accSymbol = staffInfo.accidental === 'n' ? '♮' : (staffInfo.accidental === 'b' ? '♭' : '♯');
+                svgHtml += `<text x="${noteX - 16}" y="${staffY + 6}" class="accidental-text">${accSymbol}</text>`;
+            }
 
             // Draw Standard Notation Note Head & Stem
             svgHtml += `<circle cx="${noteX}" cy="${staffY}" r="5" class="note-head"/>`;
