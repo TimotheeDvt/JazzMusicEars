@@ -22,8 +22,8 @@ export const KEYS = [
 // Format: "NoteOctave:Duration" -> e.g., "C4:1 D4:0.5 Eb4:1 | G4:5"
 export function parseMelodyString(melodyStr, keyName = "C") {
     const tokens = melodyStr.trim().split(/\s+/);
-    const melody = [];
-    let currentBeat = 0;
+    const rawElements = [];
+    let visualBeat = 0;
 
     const getKeyAccidentals = (key) => {
         const normalizedKey = key.replace(/maj/i, '').replace(/min/i, 'm');
@@ -68,16 +68,32 @@ export function parseMelodyString(melodyStr, keyName = "C") {
     };
 
     for (const token of tokens) {
+        if (token === '|:') {
+            rawElements.push({ type: 'REPEAT_START', visualBeat });
+            continue;
+        }
+        if (token === ':|') {
+            rawElements.push({ type: 'REPEAT_END', visualBeat });
+            continue;
+        }
+        if (token === '|1') {
+            rawElements.push({ type: 'ENDING_1', visualBeat });
+            continue;
+        }
+        if (token === '|2') {
+            rawElements.push({ type: 'ENDING_2', visualBeat });
+            continue;
+        }
         if (token === '|') {
-            melody.push('BAR');
+            rawElements.push({ type: 'BAR', visualBeat });
             continue;
         }
 
         // Handle bare numbers as rest durations (e.g. "1", "0.5")
         if (!isNaN(token)) {
             const duration = parseFloat(token);
-            melody.push({ isRest: true, duration: duration, beat: currentBeat });
-            currentBeat += duration;
+            rawElements.push({ isRest: true, duration: duration, visualBeat });
+            visualBeat += duration;
             continue;
         }
 
@@ -105,19 +121,54 @@ export function parseMelodyString(melodyStr, keyName = "C") {
         const duration = parseFloat(durPart);
 
         if (notePart.toUpperCase() === 'R') {
-            melody.push({ isRest: true, duration: duration, beat: currentBeat });
-            currentBeat += duration;
+            rawElements.push({ isRest: true, duration: duration, visualBeat });
+            visualBeat += duration;
             continue;
         }
 
         const pitch = noteToMidi(notePart);
         if (pitch !== null) {
-            const noteObj = { pitch, duration: duration, beat: currentBeat, tied: isTied };
+            const noteObj = { pitch, duration: duration, visualBeat, tied: isTied };
             if (stringNum !== null) noteObj.stringNum = stringNum;
-            melody.push(noteObj);
-            currentBeat += duration;
+            rawElements.push(noteObj);
+            visualBeat += duration;
         }
     }
+
+    // Unroll repeats to generate linear audio beats
+    const melody = [];
+    let repeatStartIdx = -1;
+    let ending1StartIdx = -1;
+    let audioBeat = 0;
+    for (let i = 0; i < rawElements.length; i++) {
+        let el = rawElements[i];
+        if (el.type === 'REPEAT_START') {
+            repeatStartIdx = i + 1;
+            ending1StartIdx = -1;
+            melody.push({ ...el, beat: audioBeat });
+        } else if (el.type === 'ENDING_1') {
+            ending1StartIdx = i;
+            melody.push({ ...el, beat: audioBeat });
+        } else if (el.type === 'ENDING_2') {
+            melody.push({ ...el, beat: audioBeat });
+        } else if (el.type === 'REPEAT_END') {
+            melody.push({ ...el, beat: audioBeat });
+            let endOfCommon = (ending1StartIdx !== -1) ? ending1StartIdx : i;
+            let copy = rawElements.slice(repeatStartIdx, endOfCommon);
+            for (let c of copy) {
+                let newEl = { ...c, isRepeat: true, beat: audioBeat };
+                melody.push(newEl);
+                if (c.duration) audioBeat += c.duration;
+            }
+            repeatStartIdx = -1;
+            ending1StartIdx = -1;
+        } else {
+            let newEl = { ...el, beat: audioBeat };
+            melody.push(newEl);
+            if (el.duration) audioBeat += el.duration;
+        }
+    }
+
     return melody;
 }
 
@@ -125,10 +176,26 @@ export function parseMelodyString(melodyStr, keyName = "C") {
 // Format: "RootOctave:Type:Duration" -> e.g., "C4:m7:4 F4:7:4"
 export function parseChordsString(chordStr) {
     const tokens = chordStr.trim().split(/\s+/);
-    const chords = [];
-    let currentBeat = 0;
+    const rawElements = [];
+    let visualBeat = 0;
 
     for (const token of tokens) {
+        if (token === '|:') {
+            rawElements.push({ type: 'REPEAT_START', visualBeat });
+            continue;
+        }
+        if (token === ':|') {
+            rawElements.push({ type: 'REPEAT_END', visualBeat });
+            continue;
+        }
+        if (token === '|1') {
+            rawElements.push({ type: 'ENDING_1', visualBeat });
+            continue;
+        }
+        if (token === '|2') {
+            rawElements.push({ type: 'ENDING_2', visualBeat });
+            continue;
+        }
         if (token === '|') continue;
         const [rootPart, typePart, durPart] = token.split(':');
         if (!rootPart || !typePart || !durPart) continue;
@@ -136,7 +203,8 @@ export function parseChordsString(chordStr) {
         const duration = parseFloat(durPart);
 
         if (rootPart.toUpperCase() === 'NC') {
-            currentBeat += duration;
+            rawElements.push({ isRest: true, duration, visualBeat });
+            visualBeat += duration;
             continue;
         }
 
@@ -145,9 +213,44 @@ export function parseChordsString(chordStr) {
         const rootStrWithOctave = rootPart.match(/\d$/) ? rootPart : `${rootPart}4`;
         const parsed = parseMelodyString(`${rootStrWithOctave}:1`, "C"); // Force C to keep root absolute
         if (parsed.length > 0) {
-            chords.push({ root: parsed[0].pitch, type: typePart, duration: duration, beat: currentBeat });
-            currentBeat += duration;
+            rawElements.push({ root: parsed[0].pitch, type: typePart, duration, visualBeat });
+            visualBeat += duration;
         }
     }
-    return chords;
+
+    // Unroll repeats for chords
+    const chords = [];
+    let repeatStartIdx = -1;
+    let ending1StartIdx = -1;
+    let audioBeat = 0;
+    for (let i = 0; i < rawElements.length; i++) {
+        let el = rawElements[i];
+        if (el.type === 'REPEAT_START') {
+            repeatStartIdx = i + 1;
+            ending1StartIdx = -1;
+            chords.push({ ...el, beat: audioBeat });
+        } else if (el.type === 'ENDING_1') {
+            ending1StartIdx = i;
+            chords.push({ ...el, beat: audioBeat });
+        } else if (el.type === 'ENDING_2') {
+            chords.push({ ...el, beat: audioBeat });
+        } else if (el.type === 'REPEAT_END') {
+            chords.push({ ...el, beat: audioBeat });
+            let endOfCommon = (ending1StartIdx !== -1) ? ending1StartIdx : i;
+            let copy = rawElements.slice(repeatStartIdx, endOfCommon);
+            for (let c of copy) {
+                let newEl = { ...c, isRepeat: true, beat: audioBeat };
+                chords.push(newEl);
+                if (c.duration) audioBeat += c.duration;
+            }
+            repeatStartIdx = -1;
+            ending1StartIdx = -1;
+        } else {
+            let newEl = { ...el, beat: audioBeat };
+            chords.push(newEl);
+            if (el.duration) audioBeat += el.duration;
+        }
+    }
+
+    return chords.filter(c => !c.isRest && c.root !== undefined);
 }

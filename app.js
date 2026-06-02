@@ -211,7 +211,7 @@ class AppController {
         if (randomShift < -5) randomShift += 12;
 
         const transposedMelody = tune.melody.map(note => {
-            if (note === 'BAR' || note.type === 'BAR') return note;
+            if (note === 'BAR' || note.type === 'BAR' || note.type === 'REPEAT_START' || note.type === 'REPEAT_END' || note.type === 'ENDING_1' || note.type === 'ENDING_2' || note.isRest) return note;
             const transposedNote = { ...note, pitch: note.pitch + randomShift };
             if (randomShift !== 0) {
                 delete transposedNote.stringNum;

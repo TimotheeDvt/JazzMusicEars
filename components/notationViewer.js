@@ -45,10 +45,24 @@ export class NotationViewer extends HTMLElement {
             return;
         }
 
-        let targetMeasure = this.layoutMeasures.find(m => beat >= m.startBeat - 0.001 && beat < m.endBeat - 0.001);
+        // Map linear audio beat back to spatial visual beat
+        let vBeat = beat;
+        if (this.state.melody) {
+            const activeNote = this.state.melody.find(n => beat >= n.beat - 0.001 && beat < n.beat + (n.duration || 0) - 0.001);
+            if (activeNote && activeNote.visualBeat !== undefined) {
+                vBeat = activeNote.visualBeat + (beat - activeNote.beat);
+            } else {
+                const prevNote = [...this.state.melody].reverse().find(n => n.beat <= beat);
+                if (prevNote && prevNote.visualBeat !== undefined) {
+                    vBeat = prevNote.visualBeat + (beat - prevNote.beat);
+                }
+            }
+        }
+
+        let targetMeasure = this.layoutMeasures.find(m => vBeat >= m.startBeat - 0.001 && vBeat < m.endBeat - 0.001);
         if (!targetMeasure) {
             targetMeasure = this.layoutMeasures[this.layoutMeasures.length - 1];
-            if (beat > targetMeasure.endBeat) beat = targetMeasure.endBeat;
+            if (vBeat > targetMeasure.endBeat) vBeat = targetMeasure.endBeat;
         }
 
         const MEASURE_PADDING_LEFT = 25;
@@ -64,11 +78,11 @@ export class NotationViewer extends HTMLElement {
             let nextX = targetMeasure.endX - MEASURE_PADDING_RIGHT;
 
             for (let i = 0; i < beats.length; i++) {
-                if (beats[i] <= beat && beats[i] >= prevBeat) {
+                if (beats[i] <= vBeat && beats[i] >= prevBeat) {
                     prevBeat = beats[i];
                     prevX = targetMeasure.beatPositions[beats[i]];
                 }
-                if (beats[i] > beat && beats[i] <= nextBeat) {
+                if (beats[i] > vBeat && beats[i] <= nextBeat) {
                     nextBeat = beats[i];
                     nextX = targetMeasure.beatPositions[beats[i]];
                     break;
@@ -78,11 +92,11 @@ export class NotationViewer extends HTMLElement {
             if (nextBeat === prevBeat) {
                 x = prevX;
             } else {
-                const ratio = (beat - prevBeat) / (nextBeat - prevBeat);
+                const ratio = (vBeat - prevBeat) / (nextBeat - prevBeat);
                 x = prevX + ratio * (nextX - prevX);
             }
         } else {
-            const ratio = (beat - targetMeasure.startBeat) / (targetMeasure.endBeat - targetMeasure.startBeat);
+            const ratio = (vBeat - targetMeasure.startBeat) / (targetMeasure.endBeat - targetMeasure.startBeat);
             x = targetMeasure.startX + MEASURE_PADDING_LEFT + ratio * (targetMeasure.endX - targetMeasure.startX - MEASURE_PADDING_LEFT - MEASURE_PADDING_RIGHT);
         }
 
@@ -247,8 +261,11 @@ export class NotationViewer extends HTMLElement {
 
         // Calculate maximum required beats to determine total measures needed
         let maxBeat = 0;
-        visibleNotes.forEach(n => { if (n !== 'BAR' && n.beat !== undefined) maxBeat = Math.max(maxBeat, n.beat + n.duration); });
-        visibleChords.forEach(c => { if (c.beat !== undefined) maxBeat = Math.max(maxBeat, c.beat + c.duration); });
+        visibleNotes.forEach(n => {
+            if (n.isRepeat) return;
+            let b = n.visualBeat !== undefined ? n.visualBeat : n.beat;
+            if (b !== undefined && n.duration) maxBeat = Math.max(maxBeat, b + n.duration);
+        });
 
         let totalMeasures = 1;
         if (maxBeat > 0) {
@@ -263,8 +280,8 @@ export class NotationViewer extends HTMLElement {
         // PRE-PASS: Collect all unique visual event beats
         const allEventBeats = new Set();
         visibleNotes.forEach(note => {
-            if (note === 'BAR' || note.type === 'BAR' || note.beat === undefined) return;
-            let currentNoteBeat = note.beat;
+            if (note === 'BAR' || note.type === 'BAR' || note.type === 'REPEAT_START' || note.type === 'REPEAT_END' || note.type === 'ENDING_1' || note.type === 'ENDING_2' || note.isRepeat) return;
+            let currentNoteBeat = note.visualBeat !== undefined ? note.visualBeat : note.beat;
             let remaining = note.duration;
             let comps = [];
             [4, 3, 2, 1.5, 1, 0.5].forEach(val => {
@@ -282,7 +299,9 @@ export class NotationViewer extends HTMLElement {
             note.comps = comps; // Cache for drawing loop
         });
         visibleChords.forEach(c => {
-            if (c.beat !== undefined) allEventBeats.add(c.beat);
+            if (c.isRepeat) return;
+            const vBeat = c.visualBeat !== undefined ? c.visualBeat : c.beat;
+            if (vBeat !== undefined) allEventBeats.add(vBeat);
         });
 
         // BUILD MEASURES
@@ -423,8 +442,10 @@ export class NotationViewer extends HTMLElement {
         // --- RENDER REVEALED CHORDS ---
         const rootNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
         visibleChords.forEach((chord) => {
-            if (chord.beat === undefined) return;
-            const pos = getPos(chord.beat);
+            if (chord.isRepeat) return;
+            const vBeat = chord.visualBeat !== undefined ? chord.visualBeat : chord.beat;
+            if (vBeat === undefined) return;
+            const pos = getPos(vBeat);
             const name = rootNames[chord.root % 12] + chord.type;
             svgHtml += `<text x="${pos.x}" y="${pos.yOffset + 30}" class="chord-label">${name}</text>`;
         });
@@ -435,7 +456,61 @@ export class NotationViewer extends HTMLElement {
         let globalLastLineIdx = null;
 
         visibleNotes.forEach((note) => {
-            if (note === 'BAR' || note.type === 'BAR' || note.beat === undefined) return;
+            if (note === 'BAR' || note.type === 'BAR' || note.isRepeat) return;
+
+            const vBeat = note.visualBeat !== undefined ? note.visualBeat : note.beat;
+            if (vBeat === undefined) return;
+
+            // Render Repeat Symbols natively into the system measures
+            if (note.type === 'ENDING_1' || note.type === 'ENDING_2') {
+                let targetMeasure = measures.find(m => vBeat >= m.startBeat - 0.001 && vBeat < m.endBeat - 0.001);
+                if (!targetMeasure) targetMeasure = measures[measures.length - 1];
+                let barX = targetMeasure.startX;
+                const lineYOffset = targetMeasure.lineIndex * SYSTEM_HEIGHT + TITLE_HEIGHT;
+                
+                let bracketY = drawStaff ? lineYOffset + 15 : lineYOffset + tabYOffset - 15;
+                let textY = bracketY + 14;
+                let startY = bracketY + 20;
+
+                const text = note.type === 'ENDING_1' ? '1.' : '2.';
+                svgHtml += `<path d="M${barX} ${startY} L${barX} ${bracketY} L${barX + 60} ${bracketY}" fill="none" stroke="#1e293b" stroke-width="1.5"/>`;
+                svgHtml += `<text x="${barX + 8}" y="${textY}" font-family="sans-serif" font-size="14" font-weight="bold" fill="#1e293b">${text}</text>`;
+                return;
+            }
+
+            if (note.type === 'REPEAT_START') {
+                let targetMeasure = measures.find(m => vBeat >= m.startBeat - 0.001 && vBeat < m.endBeat - 0.001);
+                if (!targetMeasure) targetMeasure = measures[measures.length - 1];
+                let barX = targetMeasure.startX;
+                const lineYOffset = targetMeasure.lineIndex * SYSTEM_HEIGHT + TITLE_HEIGHT;
+                svgHtml += `<line x1="${barX-2}" y1="${lineYOffset + barLineStartY}" x2="${barX-2}" y2="${lineYOffset + barLineEndY}" stroke="#334155" stroke-width="4"/>`;
+                svgHtml += `<line x1="${barX+3}" y1="${lineYOffset + barLineStartY}" x2="${barX+3}" y2="${lineYOffset + barLineEndY}" stroke="#334155" stroke-width="1.5"/>`;
+                if (drawStaff) {
+                    svgHtml += `<circle cx="${barX+8}" cy="${lineYOffset + 75}" r="2" fill="#334155"/>`;
+                    svgHtml += `<circle cx="${barX+8}" cy="${lineYOffset + 85}" r="2" fill="#334155"/>`;
+                }
+                if (drawTabs) {
+                    svgHtml += `<circle cx="${barX+8}" cy="${lineYOffset + tabYOffset + 34}" r="2" fill="#334155"/>`;
+                    svgHtml += `<circle cx="${barX+8}" cy="${lineYOffset + tabYOffset + 46}" r="2" fill="#334155"/>`;
+                }
+                return;
+            }
+            if (note.type === 'REPEAT_END') {
+                let targetMeasure = measures.find(m => vBeat >= m.startBeat - 0.001 && vBeat < m.endBeat - 0.001);
+                let barX = targetMeasure ? targetMeasure.startX : measures[measures.length - 1].endX;
+                const lineYOffset = targetMeasure ? targetMeasure.lineIndex * SYSTEM_HEIGHT + TITLE_HEIGHT : (measures[measures.length - 1].lineIndex * SYSTEM_HEIGHT + TITLE_HEIGHT);
+                svgHtml += `<line x1="${barX-3}" y1="${lineYOffset + barLineStartY}" x2="${barX-3}" y2="${lineYOffset + barLineEndY}" stroke="#334155" stroke-width="1.5"/>`;
+                svgHtml += `<line x1="${barX+2}" y1="${lineYOffset + barLineStartY}" x2="${barX+2}" y2="${lineYOffset + barLineEndY}" stroke="#334155" stroke-width="4"/>`;
+                if (drawStaff) {
+                    svgHtml += `<circle cx="${barX-8}" cy="${lineYOffset + 75}" r="2" fill="#334155"/>`;
+                    svgHtml += `<circle cx="${barX-8}" cy="${lineYOffset + 85}" r="2" fill="#334155"/>`;
+                }
+                if (drawTabs) {
+                    svgHtml += `<circle cx="${barX-8}" cy="${lineYOffset + tabYOffset + 34}" r="2" fill="#334155"/>`;
+                    svgHtml += `<circle cx="${barX-8}" cy="${lineYOffset + tabYOffset + 46}" r="2" fill="#334155"/>`;
+                }
+                return;
+            }
 
             if (note.isRest) {
                 note.comps.forEach((comp) => {
@@ -464,7 +539,7 @@ export class NotationViewer extends HTMLElement {
 
             const staffInfo = this.midiToStaffInfo(note.pitch, key);
             const guitar = this.midiToGuitar(note.pitch, note.stringNum);
-            const noteStartPos = getPos(note.beat);
+            const noteStartPos = getPos(vBeat);
 
             // Draw Accidental (Once per actual note)
             if (drawStaff && staffInfo.accidental) {

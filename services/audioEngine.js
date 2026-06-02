@@ -134,7 +134,7 @@ class AudioEngine {
 
         const mergedMelody = [];
         melody.forEach(note => {
-            if (note === 'BAR' || note.type === 'BAR' || note.isRest) return;
+            if (note.pitch === undefined || note.isRest) return;
             if (note.tied && mergedMelody.length > 0 && mergedMelody[mergedMelody.length - 1].pitch === note.pitch) {
                 mergedMelody[mergedMelody.length - 1].duration += note.duration;
             } else {
@@ -165,7 +165,7 @@ class AudioEngine {
 
         const mergedMelody = [];
         melody.forEach(note => {
-            if (note === 'BAR' || note.type === 'BAR' || note.isRest) return;
+            if (note.pitch === undefined || note.isRest) return;
             if (note.tied && mergedMelody.length > 0 && mergedMelody[mergedMelody.length - 1].pitch === note.pitch) {
                 mergedMelody[mergedMelody.length - 1].duration += note.duration;
             } else {
