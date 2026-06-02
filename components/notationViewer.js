@@ -345,7 +345,7 @@ export class NotationViewer extends HTMLElement {
         });
 
         const totalLines = currentLine + 1;
-        const TITLE_HEIGHT = 45;
+        const TITLE_HEIGHT = revealChords ? 70 : 45;
         const height = totalLines * SYSTEM_HEIGHT + TITLE_HEIGHT;
 
         let svgHtml = `
@@ -468,9 +468,9 @@ export class NotationViewer extends HTMLElement {
                 let barX = targetMeasure.startX;
                 const lineYOffset = targetMeasure.lineIndex * SYSTEM_HEIGHT + TITLE_HEIGHT;
 
-                let bracketY = drawStaff ? lineYOffset + 15 : lineYOffset + tabYOffset - 15;
+                let bracketY = revealChords ? lineYOffset - 10 : (drawStaff ? lineYOffset + 15 : lineYOffset + tabYOffset - 15);
                 let textY = bracketY + 14;
-                let startY = bracketY + 20;
+                let startY = revealChords ? bracketY + 15 : bracketY + 20;
 
                 const text = note.type === 'ENDING_1' ? '1.' : '2.';
                 svgHtml += `<path d="M${barX} ${startY} L${barX} ${bracketY} L${barX + 60} ${bracketY}" fill="none" stroke="#1e293b" stroke-width="1.5"/>`;
