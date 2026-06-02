@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jazz Ear Trainer</title>
+    <link rel="stylesheet" href="styles.css">
+    <script type="module" src="app.js" defer></script>
+</head>
+
+<body>
+    <header>
+        <h1>Jazz Standard Ear Trainer</h1>
+        <div id="setup-panel" class="panel">
+            <label for="pool-size">Pool Size:</label>
+            <input type="number" id="pool-size" min="1" value="10">
+
+            <button id="manage-tunes-btn">Select Tunes</button>
+        </div>
+    </header>
+
+    <main>
+        <section id="status-card" class="card">
+            <h2 id="tune-title">Loading Tune...</h2>
+            <div id="tune-key" class="badge">Key: --</div>
+        </section>
+
+        <section class="card notation-container">
+            <notation-viewer id="notation-display"></notation-viewer>
+        </section>
+
+        <section id="controls-card" class="card grid-controls">
+            <div class="control-group">
+                <h3>Audio Controls</h3>
+                <button id="play-melody-btn" class="btn primary">Play Melody</button>
+                <button id="toggle-chords-btn" class="btn secondary">Loop Chords: OFF</button>
+            </div>
+
+            <div class="control-group">
+                <h3>Reveal Hints</h3>
+                <button id="reveal-first-btn" class="btn hint">Reveal First Note</button>
+                <button id="reveal-melody-btn" class="btn hint">Reveal Full Melody</button>
+                <button id="reveal-chords-btn" class="btn hint">Reveal Full Chords</button>
+            </div>
+        </section>
+
+        <section id="evaluation-card" class="card hidden">
+            <h3>How well did you know this tune?</h3>
+            <div class="confidence-buttons">
+                <button class="btn conf-btn" data-level="1">1 - Lost</button>
+                <button class="btn conf-btn" data-level="2">2 - Hesitant</button>
+                <button class="btn conf-btn" data-level="3">3 - Comfortable</button>
+                <button class="btn conf-btn" data-level="4">4 - Mastered</button>
+            </div>
+            <button id="next-tune-btn" class="btn action hidden">Next Tune →</button>
+        </section>
+
+        <section id="youtube-link-container" class="card hidden">
+            <a id="youtube-link" href="#" target="_blank">Listen to a performance on YouTube 📺</a>
+        </section>
+    </main>
+
+    <div id="tune-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Select Tunes to Include</h3>
+            <div id="tune-checkbox-list"></div>
+            <button id="close-modal-btn" class="btn primary">Save & Close</button>
+        </div>
+    </div>
+</body>
+
+</html>
