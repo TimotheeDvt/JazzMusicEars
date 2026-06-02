@@ -207,7 +207,11 @@ class AppController {
 
         const transposedMelody = tune.melody.map(note => {
             if (note === 'BAR' || note.type === 'BAR') return note;
-            return { ...note, pitch: note.pitch + randomShift };
+            const transposedNote = { ...note, pitch: note.pitch + randomShift };
+            if (randomShift !== 0) {
+                delete transposedNote.stringNum;
+            }
+            return transposedNote;
         });
 
         const transposedChords = tune.chords.map(chord => ({
