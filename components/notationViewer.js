@@ -135,12 +135,105 @@ export class NotationViewer extends HTMLElement {
             visibleChords = chords;
         }
 
-        // SVG Dimensions
-        const width = 800;
-        const height = 260;
+        const tsNum = Array.isArray(timeSignature) ? timeSignature[0] : 4;
+        const tsDen = Array.isArray(timeSignature) ? timeSignature[1] : 4;
+        const barDuration = tsNum * (4 / tsDen);
+
+        const keySig = this.getKeySignature(key);
+        let kx = 55;
+        keySig.forEach(() => kx += 12);
+
+        const line0StartX = Math.max(70, kx + 15) + 30; // Accommodate time signature space
+        const lineNStartX = kx + 20;
+
+        const SYSTEM_HEIGHT = 260;
+        const WIDTH = 950;
+
+        // Calculate maximum required beats to determine total measures needed
+        let maxBeat = 0;
+        visibleNotes.forEach(n => { if (n !== 'BAR' && n.beat !== undefined) maxBeat = Math.max(maxBeat, n.beat + n.duration); });
+        visibleChords.forEach(c => { if (c.beat !== undefined) maxBeat = Math.max(maxBeat, c.beat + c.duration); });
+
+        let totalMeasures = 1;
+        if (maxBeat > 0) {
+            if (anacrouse > 0) {
+                if (maxBeat <= anacrouse) totalMeasures = 1;
+                else totalMeasures = 1 + Math.ceil((maxBeat - anacrouse) / barDuration);
+            } else {
+                totalMeasures = Math.ceil(maxBeat / barDuration);
+            }
+        }
+
+        // PRE-PASS: Collect all unique visual event beats
+        const allEventBeats = new Set();
+        visibleNotes.forEach(note => {
+            if (note === 'BAR' || note.type === 'BAR' || note.beat === undefined) return;
+            let currentNoteBeat = note.beat;
+            let remaining = note.duration;
+            let comps = [];
+            [4, 3, 2, 1.5, 1, 0.5].forEach(val => {
+                while (remaining >= val - 0.001) {
+                    comps.push({ dur: val, beat: currentNoteBeat });
+                    allEventBeats.add(currentNoteBeat);
+                    currentNoteBeat += val;
+                    remaining -= val;
+                }
+            });
+            if (comps.length === 0) {
+                comps.push({ dur: 0.5, beat: currentNoteBeat });
+                allEventBeats.add(currentNoteBeat);
+            }
+            note.comps = comps; // Cache for drawing loop
+        });
+        visibleChords.forEach(c => {
+            if (c.beat !== undefined) allEventBeats.add(c.beat);
+        });
+
+        // BUILD MEASURES
+        const measures = [];
+        for (let m = 0; m < totalMeasures; m++) {
+            let startBeat = (anacrouse > 0 && m === 0) ? 0 : (anacrouse > 0 ? anacrouse + (m - 1) * barDuration : m * barDuration);
+            let endBeat = anacrouse > 0 ? anacrouse + m * barDuration : (m + 1) * barDuration;
+
+            const measureBeats = Array.from(allEventBeats).filter(b => b >= startBeat - 0.001 && b < endBeat - 0.001);
+            measureBeats.sort((a, b) => a - b);
+
+            measures.push({ index: m, startBeat, endBeat, beats: measureBeats });
+        }
+
+        // CALCULATE DYNAMIC PROPORTIONAL LAYOUT
+        const PIXELS_PER_STEP = 55;
+        const MEASURE_PADDING_LEFT = 25;
+        const MEASURE_PADDING_RIGHT = 15;
+
+        let currentLine = 0;
+        let currentX = line0StartX;
+
+        measures.forEach((measure, idx) => {
+            let contentWidth = measure.beats.length * PIXELS_PER_STEP;
+            if (measure.beats.length === 0) contentWidth = PIXELS_PER_STEP;
+            let measureWidth = MEASURE_PADDING_LEFT + contentWidth + MEASURE_PADDING_RIGHT;
+
+            if (idx > 0 && currentX + measureWidth > WIDTH - 20) {
+                currentLine++;
+                currentX = lineNStartX;
+            }
+
+            measure.lineIndex = currentLine;
+            measure.startX = currentX;
+            measure.beatPositions = {};
+            measure.beats.forEach((b, i) => {
+                measure.beatPositions[b] = currentX + MEASURE_PADDING_LEFT + (i * PIXELS_PER_STEP);
+            });
+            currentX += measureWidth;
+            measure.endX = currentX;
+        });
+
+        const totalLines = currentLine + 1;
+        const height = totalLines * SYSTEM_HEIGHT;
 
         let svgHtml = `
-            <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; max-width: 100%; max-height: 100%;">
+            <svg viewBox="0 0 ${WIDTH} ${height}" width="100%" xmlns="http://www.w3.org/2000/svg" style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; display: block;">
                 <style>
                     .staff-line { stroke: #64748b; stroke-width: 1; }
                     .clef-text { font-family: serif; font-size: 42px; font-weight: bold; fill: #1e293b; }
@@ -154,164 +247,169 @@ export class NotationViewer extends HTMLElement {
                 </style>
         `;
 
-        // --- DRAW STANDARD NOTATION STAFF (5 Lines) ---
-        for (let i = 0; i < 5; i++) {
-            const y = 50 + (i * 10);
-            svgHtml += `<line x1="20" y1="${y}" x2="${width - 20}" y2="${y}" class="staff-line"/>`;
+        // Helper: Converts an absolute beat to an exact (x, lineIndex, yOffset) position
+        const getPos = (beat) => {
+            let targetMeasure = measures.find(m => beat >= m.startBeat - 0.001 && beat < m.endBeat - 0.001);
+            if (!targetMeasure) targetMeasure = measures[measures.length - 1];
+
+            let x = targetMeasure.beatPositions[beat];
+            if (x === undefined) x = targetMeasure.startX + MEASURE_PADDING_LEFT;
+
+            return {
+                lineIndex: targetMeasure.lineIndex,
+                x: x,
+                yOffset: targetMeasure.lineIndex * SYSTEM_HEIGHT
+            };
+        };
+
+        // --- DRAW MUSICAL SYSTEMS ---
+        for (let lineIndex = 0; lineIndex < totalLines; lineIndex++) {
+            const yOffset = lineIndex * SYSTEM_HEIGHT;
+
+            // Draw Standard Notation Staff
+            for (let i = 0; i < 5; i++) {
+                const y = yOffset + 50 + (i * 10);
+                svgHtml += `<line x1="20" y1="${y}" x2="${WIDTH - 20}" y2="${y}" class="staff-line"/>`;
+            }
+            svgHtml += `<text x="30" y="${yOffset + 83}" class="clef-text">𝄞</text>`;
+
+            // Draw Guitar Tab Staff
+            for (let i = 0; i < 6; i++) {
+                const y = yOffset + 150 + (i * 12);
+                svgHtml += `<line x1="20" y1="${y}" x2="${WIDTH - 20}" y2="${y}" class="staff-line"/>`;
+            }
+            svgHtml += `<text x="30" y="${yOffset + 172}" class="tab-text">T</text>`;
+            svgHtml += `<text x="30" y="${yOffset + 190}" class="tab-text">A</text>`;
+            svgHtml += `<text x="30" y="${yOffset + 208}" class="tab-text">B</text>`;
+
+            // Draw Boundary Barlines
+            svgHtml += `<line x1="20" y1="${yOffset + 50}" x2="20" y2="${yOffset + 210}" class="bar-line"/>`;
+            svgHtml += `<line x1="${WIDTH - 20}" y1="${yOffset + 50}" x2="${WIDTH - 20}" y2="${yOffset + 210}" class="bar-line"/>`;
+
+            // Draw Key Signature
+            let kxLocal = 55;
+            keySig.forEach(acc => {
+                svgHtml += `<text x="${kxLocal}" y="${yOffset + acc.y + 6}" class="accidental-text">${acc.symbol}</text>`;
+                kxLocal += 12;
+            });
+
+            // Draw Time Signature (First line only)
+            if (lineIndex === 0) {
+                let tsX = Math.max(70, kxLocal + 15);
+                svgHtml += `<text x="${tsX}" y="${yOffset + 68}" class="time-sig-text">${tsNum}</text>`;
+                svgHtml += `<text x="${tsX}" y="${yOffset + 88}" class="time-sig-text">${tsDen}</text>`;
+            }
         }
-        svgHtml += `<text x="30" y="83" class="clef-text">𝄞</text>`;
 
-        // --- DRAW GUITAR TAB STAFF (6 Lines) ---
-        for (let i = 0; i < 6; i++) {
-            const y = 150 + (i * 12);
-            svgHtml += `<line x1="20" y1="${y}" x2="${width - 20}" y2="${y}" class="staff-line"/>`;
+        // --- DRAW MEASURE BARLINES ---
+        for (let i = 0; i < measures.length - 1; i++) {
+            const currentMeasure = measures[i];
+            const nextMeasure = measures[i + 1];
+            if (currentMeasure.lineIndex === nextMeasure.lineIndex) {
+                const x = nextMeasure.startX;
+                const yOffset = currentMeasure.lineIndex * SYSTEM_HEIGHT;
+                svgHtml += `<line x1="${x}" y1="${yOffset + 50}" x2="${x}" y2="${yOffset + 210}" class="bar-line"/>`;
+            }
         }
-        svgHtml += `<text x="30" y="172" class="tab-text">T</text>`;
-        svgHtml += `<text x="30" y="190" class="tab-text">A</text>`;
-        svgHtml += `<text x="30" y="208" class="tab-text">B</text>`;
-
-        // System Boundary Bar Lines
-        svgHtml += `<line x1="20" y1="50" x2="20" y2="210" class="bar-line"/>`;
-        svgHtml += `<line x1="${width - 20}" y1="50" x2="${width - 20}" y2="210" class="bar-line"/>`;
-
-        // --- DRAW KEY SIGNATURE ---
-        const keySig = this.getKeySignature(key);
-        let kx = 55;
-        keySig.forEach(acc => {
-            svgHtml += `<text x="${kx}" y="${acc.y + 6}" class="accidental-text">${acc.symbol}</text>`;
-            kx += 12;
-        });
-
-        // --- DRAW TIME SIGNATURE ---
-        let tsX = Math.max(70, kx + 15);
-        const tsNum = Array.isArray(timeSignature) ? timeSignature[0] : 4;
-        const tsDen = Array.isArray(timeSignature) ? timeSignature[1] : 4;
-        svgHtml += `<text x="${tsX}" y="68" class="time-sig-text">${tsNum}</text>`;
-        svgHtml += `<text x="${tsX}" y="88" class="time-sig-text">${tsDen}</text>`;
-
-        const startX = tsX + 30;
 
         // --- RENDER REVEALED CHORDS ---
         const rootNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
         visibleChords.forEach((chord) => {
-            const chordX = startX + (chord.beat * 70); // 70px matches the default melody spacing step
+            if (chord.beat === undefined) return;
+            const pos = getPos(chord.beat);
             const name = rootNames[chord.root % 12] + chord.type;
-            svgHtml += `<text x="${chordX}" y="30" class="chord-label">${name}</text>`;
+            svgHtml += `<text x="${pos.x}" y="${pos.yOffset + 30}" class="chord-label">${name}</text>`;
         });
 
         // --- RENDER REVEALED MELODY NOTES ---
-        let noteX = startX;
-
-        const barDuration = tsNum * (4 / tsDen);
-        let currentBeat = anacrouse > 0 ? (barDuration - anacrouse) : 0;
-
-        let lastDrawnNoteX = null;
-        let lastDrawnNoteY = null;
+        let globalLastNoteX = null;
+        let globalLastNoteY = null;
+        let globalLastLineIdx = null;
 
         visibleNotes.forEach((note) => {
-            if (note === 'BAR' || note.type === 'BAR') {
-                let barX = noteX - 35;
-                svgHtml += `<line x1="${barX}" y1="50" x2="${barX}" y2="210" class="bar-line"/>`;
-                currentBeat = 0;
-                return;
-            }
+            if (note === 'BAR' || note.type === 'BAR' || note.beat === undefined) return;
 
             const staffInfo = this.midiToStaffInfo(note.pitch, key);
-            const staffY = staffInfo.y;
             const guitar = this.midiToGuitar(note.pitch);
-            const tabY = 150 + ((guitar.stringNum - 1) * 12);
+            const noteStartPos = getPos(note.beat);
 
             // Draw Accidental (Once per actual note)
             if (staffInfo.accidental) {
                 const accSymbol = staffInfo.accidental === 'n' ? '♮' : (staffInfo.accidental === 'b' ? '♭' : '♯');
-                svgHtml += `<text x="${noteX - 20}" y="${staffY + 6}" class="accidental-text">${accSymbol}</text>`;
+                svgHtml += `<text x="${noteStartPos.x - 20}" y="${noteStartPos.yOffset + staffInfo.y + 6}" class="accidental-text">${accSymbol}</text>`;
             }
 
             // Decompose duration into standard visual components (e.g., 5 becomes a Whole Note tied to a Quarter Note)
-            let remaining = note.duration;
-            let comps = [];
-            [4, 3, 2, 1.5, 1, 0.5].forEach(val => {
-                while (remaining >= val - 0.001) {
-                    comps.push(val);
-                    remaining -= val;
-                }
-            });
-            if (comps.length === 0) comps.push(0.5);
+            note.comps.forEach((comp, idx) => {
+                const pos = getPos(comp.beat);
+                const staffY = pos.yOffset + staffInfo.y;
+                const tabY = pos.yOffset + 150 + ((guitar.stringNum - 1) * 12);
 
-            let compX = noteX;
-            comps.forEach((compDur, idx) => {
                 // Draw Ledger Lines for each component
-                if (staffY >= 100) {
-                    for (let ly = 100; ly <= staffY; ly += 10) {
-                        svgHtml += `<line x1="${compX - 12}" y1="${ly}" x2="${compX + 12}" y2="${ly}" stroke="#0f172a" stroke-width="2"/>`;
+                if (staffInfo.y >= 100) {
+                    for (let ly = 100; ly <= staffInfo.y; ly += 10) {
+                        svgHtml += `<line x1="${pos.x - 12}" y1="${pos.yOffset + ly}" x2="${pos.x + 12}" y2="${pos.yOffset + ly}" stroke="#0f172a" stroke-width="2"/>`;
                     }
-                } else if (staffY <= 40) {
-                    for (let ly = 40; ly >= staffY; ly -= 10) {
-                        svgHtml += `<line x1="${compX - 12}" y1="${ly}" x2="${compX + 12}" y2="${ly}" stroke="#0f172a" stroke-width="2"/>`;
+                } else if (staffInfo.y <= 40) {
+                    for (let ly = 40; ly >= staffInfo.y; ly -= 10) {
+                        svgHtml += `<line x1="${pos.x - 12}" y1="${pos.yOffset + ly}" x2="${pos.x + 12}" y2="${pos.yOffset + ly}" stroke="#0f172a" stroke-width="2"/>`;
                     }
                 }
 
-                // Tie to previous note if this is a newly tied note
-                if (idx === 0 && note.tied && lastDrawnNoteX !== null) {
-                    const tieDir = staffY <= 70 ? -1 : 1;
-                    const midX = (lastDrawnNoteX + compX) / 2;
-                    svgHtml += `<path d="M${lastDrawnNoteX + 5} ${lastDrawnNoteY + tieDir * 8} Q${midX} ${lastDrawnNoteY + tieDir * 14} ${compX - 5} ${staffY + tieDir * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
-                }
-                // Tie to previous visual component of the SAME note
-                else if (idx > 0) {
-                    const tieDir = staffY <= 70 ? -1 : 1;
-                    svgHtml += `<path d="M${compX - 35} ${staffY + tieDir * 8} Q${compX - 17.5} ${staffY + tieDir * 14} ${compX - 5} ${staffY + tieDir * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                // Handle Tie curves natively across structural breaks
+                const isTiedToPrev = (idx === 0 && note.tied) || (idx > 0);
+                if (isTiedToPrev && globalLastNoteX !== null) {
+                    if (globalLastLineIdx === pos.lineIndex) {
+                        const tieDir = staffInfo.y <= 70 ? -1 : 1;
+                        const midX = (globalLastNoteX + pos.x) / 2;
+                        svgHtml += `<path d="M${globalLastNoteX + 5} ${globalLastNoteY + tieDir * 8} Q${midX} ${globalLastNoteY + tieDir * 14} ${pos.x - 5} ${staffY + tieDir * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                    } else {
+                        // Cross-system broken ties
+                        const tieDir1 = (globalLastNoteY - (globalLastLineIdx * SYSTEM_HEIGHT)) <= 70 ? -1 : 1;
+                        svgHtml += `<path d="M${globalLastNoteX + 5} ${globalLastNoteY + tieDir1 * 8} Q${globalLastNoteX + 20} ${globalLastNoteY + tieDir1 * 14} ${globalLastNoteX + 35} ${globalLastNoteY + tieDir1 * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+
+                        const tieDir2 = staffInfo.y <= 70 ? -1 : 1;
+                        svgHtml += `<path d="M${pos.x - 35} ${staffY + tieDir2 * 8} Q${pos.x - 20} ${staffY + tieDir2 * 14} ${pos.x - 5} ${staffY + tieDir2 * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                    }
                 }
 
                 // Draw Standard Notation Note Head (Hollow for Half/Whole notes)
-                if (compDur >= 2) {
-                    svgHtml += `<circle cx="${compX}" cy="${staffY}" r="5.5" fill="#fff" stroke="#0f172a" stroke-width="2"/>`;
+                if (comp.dur >= 2) {
+                    svgHtml += `<circle cx="${pos.x}" cy="${staffY}" r="5.5" fill="#fff" stroke="#0f172a" stroke-width="2"/>`;
                 } else {
-                    svgHtml += `<circle cx="${compX}" cy="${staffY}" r="5.5" class="note-head"/>`;
+                    svgHtml += `<circle cx="${pos.x}" cy="${staffY}" r="5.5" class="note-head"/>`;
                 }
 
                 // Draw Stem direction based on staff position
-                // Center line is B4 (y=70). Notes on or above the center line get downward stems.
-                if (compDur < 4) {
-                    const stemDown = staffY <= 70;
-                    const stemX = stemDown ? compX - 5 : compX + 5;
+                if (comp.dur < 4) {
+                    const stemDown = staffInfo.y <= 70;
+                    const stemX = stemDown ? pos.x - 5 : pos.x + 5;
                     const stemY2 = stemDown ? staffY + 30 : staffY - 30;
                     svgHtml += `<line x1="${stemX}" y1="${staffY}" x2="${stemX}" y2="${stemY2}" stroke="#0f172a" stroke-width="1.5"/>`;
 
                     // Draw Flag for Eighth note (0.5)
-                    if (compDur === 0.5) {
+                    if (comp.dur === 0.5) {
                         if (stemDown) {
-                            svgHtml += `<path d="M${stemX} ${stemY2} Q${stemX+10} ${stemY2-5} ${stemX+12} ${stemY2-20} Q${stemX+6} ${stemY2-10} ${stemX} ${stemY2-10}" fill="#0f172a"/>`;
+                            svgHtml += `<path d="M${stemX} ${stemY2} Q${stemX + 10} ${stemY2 - 5} ${stemX + 12} ${stemY2 - 20} Q${stemX + 6} ${stemY2 - 10} ${stemX} ${stemY2 - 10}" fill="#0f172a"/>`;
                         } else {
-                            svgHtml += `<path d="M${stemX} ${stemY2} Q${stemX+10} ${stemY2+5} ${stemX+12} ${stemY2+20} Q${stemX+6} ${stemY2+10} ${stemX} ${stemY2+10}" fill="#0f172a"/>`;
+                            svgHtml += `<path d="M${stemX} ${stemY2} Q${stemX + 10} ${stemY2 + 5} ${stemX + 12} ${stemY2 + 20} Q${stemX + 6} ${stemY2 + 10} ${stemX} ${stemY2 + 10}" fill="#0f172a"/>`;
                         }
                     }
                 }
 
                 // Draw Dot for Dotted notes
-                if (compDur === 3 || compDur === 1.5) {
-                    svgHtml += `<circle cx="${compX + 10}" cy="${staffY}" r="2" class="note-head"/>`;
+                if (comp.dur === 3 || comp.dur === 1.5) {
+                    svgHtml += `<circle cx="${pos.x + 10}" cy="${staffY}" r="2" class="note-head"/>`;
                 }
 
-                lastDrawnNoteX = compX;
-                lastDrawnNoteY = staffY;
+                // Draw Guitar Tab Note Intersection Circle Overlay
+                svgHtml += `<circle cx="${pos.x}" cy="${tabY}" r="8" fill="#fff"/>`;
+                svgHtml += `<text x="${pos.x}" y="${tabY + 4}" class="note-text" fill="#000" style="fill: #000; font-size:12px;">${guitar.fret}</text>`;
 
-                if (idx < comps.length - 1) compX += 40;
+                globalLastNoteX = pos.x;
+                globalLastNoteY = staffY;
+                globalLastLineIdx = pos.lineIndex;
             });
-
-            // Draw Guitar Tab Note Intersection Circle Overlay
-            svgHtml += `<circle cx="${noteX}" cy="${tabY}" r="8" fill="#fff"/>`;
-            svgHtml += `<text x="${noteX}" y="${tabY + 4}" class="note-text" fill="#000" style="fill: #000; font-size:12px;">${guitar.fret}</text>`;
-
-            noteX = compX + 70; // Step right to position the next actual note
-            currentBeat += note.duration;
-
-            // Draw automatic bar line if we filled the measure
-            if (currentBeat >= barDuration - 0.001) {
-                let barX = noteX - 35;
-                svgHtml += `<line x1="${barX}" y1="50" x2="${barX}" y2="210" class="bar-line"/>`;
-                currentBeat -= barDuration;
-            }
         });
 
         svgHtml += `</svg>`;
@@ -321,8 +419,9 @@ export class NotationViewer extends HTMLElement {
     render() {
         this.shadowRoot.innerHTML = `
             <style>
-                :host { display: block; width: 100%; height: 100%; }
-                .score-wrapper { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+                :host { display: block; width: 100%; height: 100%; min-height: 0; }
+                .score-wrapper { width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 10px; box-sizing: border-box; }
+                svg { margin: 0 auto; display: block; }
             </style>
             <div class="score-wrapper">
                 ${this.generateSVG()}
