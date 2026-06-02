@@ -73,7 +73,7 @@ export class NotationViewer extends HTMLElement {
         if (beats && beats.length > 0) {
             let prevBeat = targetMeasure.startBeat;
             let prevX = targetMeasure.startX + MEASURE_PADDING_LEFT;
-            
+
             let nextBeat = targetMeasure.endBeat;
             let nextX = targetMeasure.endX - MEASURE_PADDING_RIGHT;
 
@@ -467,7 +467,7 @@ export class NotationViewer extends HTMLElement {
                 if (!targetMeasure) targetMeasure = measures[measures.length - 1];
                 let barX = targetMeasure.startX;
                 const lineYOffset = targetMeasure.lineIndex * SYSTEM_HEIGHT + TITLE_HEIGHT;
-                
+
                 let bracketY = drawStaff ? lineYOffset + 15 : lineYOffset + tabYOffset - 15;
                 let textY = bracketY + 14;
                 let startY = bracketY + 20;
@@ -483,15 +483,15 @@ export class NotationViewer extends HTMLElement {
                 if (!targetMeasure) targetMeasure = measures[measures.length - 1];
                 let barX = targetMeasure.startX;
                 const lineYOffset = targetMeasure.lineIndex * SYSTEM_HEIGHT + TITLE_HEIGHT;
-                svgHtml += `<line x1="${barX-2}" y1="${lineYOffset + barLineStartY}" x2="${barX-2}" y2="${lineYOffset + barLineEndY}" stroke="#334155" stroke-width="4"/>`;
-                svgHtml += `<line x1="${barX+3}" y1="${lineYOffset + barLineStartY}" x2="${barX+3}" y2="${lineYOffset + barLineEndY}" stroke="#334155" stroke-width="1.5"/>`;
+                svgHtml += `<line x1="${barX - 2}" y1="${lineYOffset + barLineStartY}" x2="${barX - 2}" y2="${lineYOffset + barLineEndY}" stroke="#334155" stroke-width="4"/>`;
+                svgHtml += `<line x1="${barX + 3}" y1="${lineYOffset + barLineStartY}" x2="${barX + 3}" y2="${lineYOffset + barLineEndY}" stroke="#334155" stroke-width="1.5"/>`;
                 if (drawStaff) {
-                    svgHtml += `<circle cx="${barX+8}" cy="${lineYOffset + 75}" r="2" fill="#334155"/>`;
-                    svgHtml += `<circle cx="${barX+8}" cy="${lineYOffset + 85}" r="2" fill="#334155"/>`;
+                    svgHtml += `<circle cx="${barX + 8}" cy="${lineYOffset + 65}" r="2" fill="#334155"/>`;
+                    svgHtml += `<circle cx="${barX + 8}" cy="${lineYOffset + 75}" r="2" fill="#334155"/>`;
                 }
                 if (drawTabs) {
-                    svgHtml += `<circle cx="${barX+8}" cy="${lineYOffset + tabYOffset + 34}" r="2" fill="#334155"/>`;
-                    svgHtml += `<circle cx="${barX+8}" cy="${lineYOffset + tabYOffset + 46}" r="2" fill="#334155"/>`;
+                    svgHtml += `<circle cx="${barX + 8}" cy="${lineYOffset + tabYOffset + 24}" r="2" fill="#334155"/>`;
+                    svgHtml += `<circle cx="${barX + 8}" cy="${lineYOffset + tabYOffset + 36}" r="2" fill="#334155"/>`;
                 }
                 return;
             }
@@ -499,15 +499,15 @@ export class NotationViewer extends HTMLElement {
                 let targetMeasure = measures.find(m => vBeat >= m.startBeat - 0.001 && vBeat < m.endBeat - 0.001);
                 let barX = targetMeasure ? targetMeasure.startX : measures[measures.length - 1].endX;
                 const lineYOffset = targetMeasure ? targetMeasure.lineIndex * SYSTEM_HEIGHT + TITLE_HEIGHT : (measures[measures.length - 1].lineIndex * SYSTEM_HEIGHT + TITLE_HEIGHT);
-                svgHtml += `<line x1="${barX-3}" y1="${lineYOffset + barLineStartY}" x2="${barX-3}" y2="${lineYOffset + barLineEndY}" stroke="#334155" stroke-width="1.5"/>`;
-                svgHtml += `<line x1="${barX+2}" y1="${lineYOffset + barLineStartY}" x2="${barX+2}" y2="${lineYOffset + barLineEndY}" stroke="#334155" stroke-width="4"/>`;
+                svgHtml += `<line x1="${barX - 3}" y1="${lineYOffset + barLineStartY}" x2="${barX - 3}" y2="${lineYOffset + barLineEndY}" stroke="#334155" stroke-width="1.5"/>`;
+                svgHtml += `<line x1="${barX + 2}" y1="${lineYOffset + barLineStartY}" x2="${barX + 2}" y2="${lineYOffset + barLineEndY}" stroke="#334155" stroke-width="4"/>`;
                 if (drawStaff) {
-                    svgHtml += `<circle cx="${barX-8}" cy="${lineYOffset + 75}" r="2" fill="#334155"/>`;
-                    svgHtml += `<circle cx="${barX-8}" cy="${lineYOffset + 85}" r="2" fill="#334155"/>`;
+                    svgHtml += `<circle cx="${barX - 8}" cy="${lineYOffset + 75}" r="2" fill="#334155"/>`;
+                    svgHtml += `<circle cx="${barX - 8}" cy="${lineYOffset + 85}" r="2" fill="#334155"/>`;
                 }
                 if (drawTabs) {
-                    svgHtml += `<circle cx="${barX-8}" cy="${lineYOffset + tabYOffset + 34}" r="2" fill="#334155"/>`;
-                    svgHtml += `<circle cx="${barX-8}" cy="${lineYOffset + tabYOffset + 46}" r="2" fill="#334155"/>`;
+                    svgHtml += `<circle cx="${barX - 8}" cy="${lineYOffset + tabYOffset + 34}" r="2" fill="#334155"/>`;
+                    svgHtml += `<circle cx="${barX - 8}" cy="${lineYOffset + tabYOffset + 46}" r="2" fill="#334155"/>`;
                 }
                 return;
             }
