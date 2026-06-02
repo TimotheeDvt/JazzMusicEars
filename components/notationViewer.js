@@ -60,15 +60,15 @@ export class NotationViewer extends HTMLElement {
             77: -6, // F5
             79: -7  // G5
         };
-        
+
         // Find closest matching baseline step
         const matchedStep = semitoneToStaffStep[midi] !== undefined ? semitoneToStaffStep[midi] : 0;
-        return 70 + (matchedStep * 8); 
+        return 70 + (matchedStep * 8);
     }
 
     generateSVG() {
         const { melody, chords, revealMelody, revealChords } = this.state;
-        
+
         let visibleNotes = [];
         let visibleChords = [];
 
@@ -120,8 +120,8 @@ export class NotationViewer extends HTMLElement {
 
         // --- RENDER REVEALED CHORDS ---
         let chordX = 100;
+        const rootNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
         visibleChords.forEach((chord) => {
-            const rootNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
             const name = rootNames[chord.root % 12] + chord.type;
             svgHtml += `<text x="${chordX}" y="30" class="chord-label">${name}</text>`;
             chordX += 160;
