@@ -351,6 +351,31 @@ export class NotationViewer extends HTMLElement {
         visibleNotes.forEach((note) => {
             if (note === 'BAR' || note.type === 'BAR' || note.beat === undefined) return;
 
+            if (note.isRest) {
+                note.comps.forEach((comp) => {
+                    const pos = getPos(comp.beat);
+
+                    if (drawStaff) {
+                        if (comp.dur >= 4) {
+                            svgHtml += `<rect x="${pos.x - 6}" y="${pos.yOffset + 60}" width="12" height="5" fill="#0f172a"/>`;
+                        } else if (comp.dur >= 2) {
+                            svgHtml += `<rect x="${pos.x - 6}" y="${pos.yOffset + 65}" width="12" height="5" fill="#0f172a"/>`;
+                        } else if (comp.dur >= 1) {
+                            svgHtml += `<path d="M${pos.x - 3} ${pos.yOffset + 55} L${pos.x + 4} ${pos.yOffset + 65} L${pos.x - 2} ${pos.yOffset + 73} C${pos.x + 5} ${pos.yOffset + 73} ${pos.x + 5} ${pos.yOffset + 84} ${pos.x - 2} ${pos.yOffset + 84} C${pos.x - 4} ${pos.yOffset + 84} ${pos.x - 4} ${pos.yOffset + 80} ${pos.x - 1} ${pos.yOffset + 80}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                        } else if (comp.dur === 0.5) {
+                            svgHtml += `<circle cx="${pos.x - 3}" cy="${pos.yOffset + 64}" r="2" fill="#0f172a"/>`;
+                            svgHtml += `<path d="M${pos.x - 3} ${pos.yOffset + 64} Q${pos.x + 5} ${pos.yOffset + 60} ${pos.x + 4} ${pos.yOffset + 70} L${pos.x - 1} ${pos.yOffset + 82}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                        }
+
+                        // Draw Dot for Dotted rests
+                        if (comp.dur === 3 || comp.dur === 1.5) {
+                            svgHtml += `<circle cx="${pos.x + 10}" cy="${pos.yOffset + 70}" r="2" class="note-head"/>`;
+                        }
+                    }
+                });
+                return;
+            }
+
             const staffInfo = this.midiToStaffInfo(note.pitch, key);
             const guitar = this.midiToGuitar(note.pitch);
             const noteStartPos = getPos(note.beat);

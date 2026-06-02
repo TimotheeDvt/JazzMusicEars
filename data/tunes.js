@@ -72,6 +72,15 @@ export function parseMelodyString(melodyStr, keyName = "C") {
             melody.push('BAR');
             continue;
         }
+
+        // Handle bare numbers as rest durations (e.g. "1", "0.5")
+        if (!isNaN(token)) {
+            const duration = parseFloat(token);
+            melody.push({ isRest: true, duration: duration, beat: currentBeat });
+            currentBeat += duration;
+            continue;
+        }
+
         const [notePartRaw, durPart] = token.split(':');
         if (!notePartRaw || !durPart) continue;
 
@@ -85,6 +94,7 @@ export function parseMelodyString(melodyStr, keyName = "C") {
         const duration = parseFloat(durPart);
 
         if (notePart.toUpperCase() === 'R') {
+            melody.push({ isRest: true, duration: duration, beat: currentBeat });
             currentBeat += duration;
             continue;
         }
