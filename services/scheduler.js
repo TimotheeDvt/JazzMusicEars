@@ -3,15 +3,15 @@
  * Prioritizes tunes with low confidence ratings.
  */
 export class Scheduler {
-    constructor(allTunes) {
-        this.allTunes = allTunes;
+    constructor(allTuneIds) {
+        this.allTuneIds = allTuneIds;
         // Load existing confidence tracking or instantiate a new one
         this.confidenceMap = JSON.parse(localStorage.getItem('jazz_confidence_v1')) || {};
 
         // Initialize default scores if empty
-        this.allTunes.forEach(tune => {
-            if (!this.confidenceMap[tune.id]) {
-                this.confidenceMap[tune.id] = 1; // Default to lowest rating (unlearned)
+        this.allTuneIds.forEach(id => {
+            if (!this.confidenceMap[id]) {
+                this.confidenceMap[id] = 1; // Default to lowest rating (unlearned)
             }
         });
     }
@@ -23,20 +23,20 @@ export class Scheduler {
 
     getNextTune(selectedIds, poolLimit) {
         // Filter down by active user selection settings
-        let pool = this.allTunes.filter(t => selectedIds.includes(t.id));
+        let pool = this.allTuneIds.filter(id => selectedIds.includes(id));
 
         if (pool.length === 0) return null;
 
         // Sort pool based on inverted tracking weights (Lower confidence = Higher priority)
         // Weighted probability score generation
         let weightedPool = [];
-        pool.forEach(tune => {
-            const level = this.confidenceMap[tune.id] || 1;
+        pool.forEach(id => {
+            const level = this.confidenceMap[id] || 1;
             // Level 1 (Lost) gets 4 entries, Level 4 (Mastered) gets 1 entry
             const weight = Math.max(1, 5 - level);
 
             for (let i = 0; i < weight; i++) {
-                weightedPool.push(tune);
+                weightedPool.push(id);
             }
         });
 

@@ -10,7 +10,7 @@ class AppController {
         // App State
         this.currentOriginalTune = null;
         this.currentTransposedTune = null;
-        this.selectedTuneIds = jazzStandards.map(t => t.id); // All selected by default
+        this.selectedTuneIds = [...jazzStandards]; // All selected by default
         this.poolSize = 10;
         this.revealMelodyState = 'empty';
         this.revealChordsState = false;
@@ -129,17 +129,23 @@ class AppController {
         this.fileInput.addEventListener('change', (e) => this.importConfidenceData(e));
     }
 
-    initModalList() {
+    async initModalList() {
         this.tuneCheckboxList.innerHTML = '';
-        jazzStandards.forEach(tune => {
-            const label = document.createElement('label');
-            label.style.display = 'block';
-            label.innerHTML = `
-                <input type="checkbox" value="${tune.id}" checked>
-                ${tune.title} (${tune.originalKey})
-            `;
-            this.tuneCheckboxList.appendChild(label);
-        });
+        for (const id of jazzStandards) {
+            try {
+                const module = await import(`./data/${id}.js`);
+                const tune = module.tune;
+                const label = document.createElement('label');
+                label.style.display = 'block';
+                label.innerHTML = `
+                    <input type="checkbox" value="${tune.id}" checked>
+                    ${tune.title} (${tune.originalKey})
+                `;
+                this.tuneCheckboxList.appendChild(label);
+            } catch (err) {
+                console.error(`Failed to load tune: ${id}`, err);
+            }
+        }
     }
 
     updateSelectedTunesFromModal() {
@@ -173,7 +179,7 @@ class AppController {
         };
     }
 
-    loadNextTune() {
+    async loadNextTune() {
         // Reset ongoing loops
         audioEngine.stopChordsLoop();
         this.toggleChordsBtn.textContent = "Loop Chords: OFF";
@@ -184,38 +190,47 @@ class AppController {
         this.evaluationCard.classList.remove('hidden');
 
         // Pick next tune using pool limits and choices
-        const targetTune = this.scheduler.getNextTune(this.selectedTuneIds, this.poolSize);
+        const targetTuneId = this.scheduler.getNextTune(this.selectedTuneIds, this.poolSize);
 
-        if (!targetTune) {
+        if (!targetTuneId) {
             this.tuneTitle.textContent = "No Tunes Selected!";
             this.tuneKey.textContent = "Key: --";
             return;
         }
 
-        this.currentOriginalTune = targetTune;
+        try {
+            const module = await import(`./data/${targetTuneId}.js`);
+            const targetTune = module.tune;
 
-        // Pick absolute random key target context
-        const randomKeyIdx = Math.floor(Math.random() * KEYS.length);
-        const randomTargetKey = KEYS[randomKeyIdx];
+            this.currentOriginalTune = targetTune;
 
-        this.currentTransposedTune = this.transposeTune(targetTune, randomTargetKey);
+            // Pick absolute random key target context
+            const randomKeyIdx = Math.floor(Math.random() * KEYS.length);
+            const randomTargetKey = KEYS[randomKeyIdx];
 
-        // Update basic text headers
-        this.tuneTitle.textContent = this.currentTransposedTune.title;
-        this.tuneKey.textContent = `Key: ${this.currentTransposedTune.keyName}`;
+            this.currentTransposedTune = this.transposeTune(targetTune, randomTargetKey);
 
-        // Populate Performance Link UI Elements
-        if (targetTune.youtube) {
-            this.ytLink.href = targetTune.youtube;
-            this.ytContainer.classList.remove('hidden');
-        } else {
-            this.ytContainer.classList.add('hidden');
+            // Update basic text headers
+            this.tuneTitle.textContent = this.currentTransposedTune.title;
+            this.tuneKey.textContent = `Key: ${this.currentTransposedTune.keyName}`;
+
+            // Populate Performance Link UI Elements
+            if (targetTune.youtube) {
+                this.ytLink.href = targetTune.youtube;
+                this.ytContainer.classList.remove('hidden');
+            } else {
+                this.ytContainer.classList.add('hidden');
+            }
+
+            // Initialize Web Component to completely blank out score elements visually
+            this.revealMelodyState = 'empty';
+            this.revealChordsState = false;
+            this.updateDisplay();
+        } catch (err) {
+            console.error(`Failed to load tune: ${targetTuneId}`, err);
+            this.tuneTitle.textContent = "Error loading tune";
+            this.tuneKey.textContent = "Key: --";
         }
-
-        // Initialize Web Component to completely blank out score elements visually
-        this.revealMelodyState = 'empty';
-        this.revealChordsState = false;
-        this.updateDisplay();
     }
 
     updateDisplay() {
