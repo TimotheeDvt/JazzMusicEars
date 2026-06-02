@@ -261,10 +261,15 @@ export class NotationViewer extends HTMLElement {
 
         // Calculate maximum required beats to determine total measures needed
         let maxBeat = 0;
-        visibleNotes.forEach(n => {
+        melody.forEach(n => {
             if (n.isRepeat) return;
             let b = n.visualBeat !== undefined ? n.visualBeat : n.beat;
             if (b !== undefined && n.duration) maxBeat = Math.max(maxBeat, b + n.duration);
+        });
+        chords.forEach(c => {
+            if (c.isRepeat) return;
+            let b = c.visualBeat !== undefined ? c.visualBeat : c.beat;
+            if (b !== undefined && c.duration) maxBeat = Math.max(maxBeat, b + c.duration);
         });
 
         let totalMeasures = 1;
@@ -279,7 +284,7 @@ export class NotationViewer extends HTMLElement {
 
         // PRE-PASS: Collect all unique visual event beats
         const allEventBeats = new Set();
-        visibleNotes.forEach(note => {
+        melody.forEach(note => {
             if (note === 'BAR' || note.type === 'BAR' || note.type === 'REPEAT_START' || note.type === 'REPEAT_END' || note.type === 'ENDING_1' || note.type === 'ENDING_2' || note.isRepeat) return;
             let currentNoteBeat = note.visualBeat !== undefined ? note.visualBeat : note.beat;
             let remaining = note.duration;
@@ -298,7 +303,7 @@ export class NotationViewer extends HTMLElement {
             }
             note.comps = comps; // Cache for drawing loop
         });
-        visibleChords.forEach(c => {
+        chords.forEach(c => {
             if (c.isRepeat) return;
             const vBeat = c.visualBeat !== undefined ? c.visualBeat : c.beat;
             if (vBeat !== undefined) allEventBeats.add(vBeat);
