@@ -229,7 +229,8 @@ class AppController {
             melody: transposedMelody,
             chords: transposedChords,
             timeSignature: tune.timeSignature || [4, 4],
-            anacrouse: tune.anacrouse || 0
+            anacrouse: tune.anacrouse || 0,
+            originalTempo: tune.originalTempo || 120
         };
     }
 
@@ -330,6 +331,10 @@ class AppController {
             // const randomTargetKey = { name: this.currentOriginalTune.originalKey, shift: 0}
 
             this.currentTransposedTune = this.transposeTune(targetTune, randomTargetKey);
+
+            // Set Original Tempo
+            this.tempoInput.value = this.currentTransposedTune.originalTempo;
+            audioEngine.tempo = this.currentTransposedTune.originalTempo;
 
             // Update basic text headers
             this.tuneTitle.textContent = this.currentTransposedTune.title;

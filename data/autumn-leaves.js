@@ -8,6 +8,7 @@ export const tune = {
     originalKey: originalKey, // E minor / G major
     timeSignature: [4, 4], // 4/4
     anacrouse: 3, // 3 quarter notes
+    originalTempo: 140,
 
     // Easy String Formatting (Note:Duration)
     melody: parseMelodyString("\
