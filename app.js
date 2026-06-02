@@ -74,13 +74,11 @@ class AppController {
         this.revealMelodyBtn.addEventListener('click', () => {
             this.revealMelodyState = 'full';
             this.updateDisplay();
-            this.evaluationCard.classList.remove('hidden');
         });
 
         this.revealChordsBtn.addEventListener('click', () => {
             this.revealChordsState = true;
             this.updateDisplay();
-            this.evaluationCard.classList.remove('hidden');
         });
 
         // Handle Evaluation Confidence Clicks
@@ -162,7 +160,7 @@ class AppController {
 
         // Reset UI Components state
         document.querySelectorAll('.conf-btn').forEach(b => b.classList.remove('selected'));
-        this.evaluationCard.classList.add('hidden');
+        this.evaluationCard.classList.remove('hidden');
 
         // Pick next tune using pool limits and choices
         const targetTune = this.scheduler.getNextTune(this.selectedTuneIds, this.poolSize);
@@ -197,11 +195,6 @@ class AppController {
         this.revealMelodyState = 'empty';
         this.revealChordsState = false;
         this.updateDisplay();
-
-        // Automatically trigger playback of the transposed melody track upon loading
-        setTimeout(() => {
-            audioEngine.playMelody(this.currentTransposedTune.melody);
-        }, 600);
     }
 
     updateDisplay() {
