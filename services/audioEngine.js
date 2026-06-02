@@ -51,6 +51,29 @@ class AudioEngine {
         });
     }
 
+    playBoth(melody, chords) {
+        this.init();
+        let startNow = this.ctx.currentTime;
+        
+        melody.forEach(note => {
+            if (note === 'BAR' || note.type === 'BAR') return;
+            const startTime = startNow + (note.beat * 0.5);
+            const seconds = note.duration * 0.5;
+            this.playTone(note.pitch, startTime, seconds, "triangle", 0.4);
+        });
+
+        chords.forEach(chord => {
+            const startTime = startNow + (chord.beat * 0.5);
+            const seconds = chord.duration * 0.5;
+            const pitches = this.getChordPitches(chord.root, chord.type);
+
+            pitches.forEach(pitch => {
+                this.playTone(pitch - 12, startTime, seconds, "sine", 0.15);
+                this.playTone(pitch, startTime, seconds, "sine", 0.12);
+            });
+        });
+    }
+
     // Simple root + basic triad/seventhvoicing strategy generator
     getChordPitches(root, type) {
         const voicings = {

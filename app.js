@@ -25,6 +25,7 @@ class AppController {
         this.poolSizeInput = document.getElementById('pool-size');
 
         // Buttons
+        this.playBothBtn = document.getElementById('play-both-btn');
         this.playMelodyBtn = document.getElementById('play-melody-btn');
         this.toggleChordsBtn = document.getElementById('toggle-chords-btn');
         this.revealFirstBtn = document.getElementById('reveal-first-btn');
@@ -54,6 +55,12 @@ class AppController {
     }
 
     initEventListeners() {
+        this.playBothBtn.addEventListener('click', () => {
+            if (this.currentTransposedTune) {
+                audioEngine.playBoth(this.currentTransposedTune.melody, this.currentTransposedTune.chords);
+            }
+        });
+
         this.playMelodyBtn.addEventListener('click', () => {
             if (this.currentTransposedTune) {
                 audioEngine.playMelody(this.currentTransposedTune.melody);
