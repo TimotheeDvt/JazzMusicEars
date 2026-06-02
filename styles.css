@@ -54,6 +54,7 @@ main {
     flex-direction: column;
     gap: 10px;
     overflow-y: auto;
+    justify-content: space-around;
 }
 
 header {
