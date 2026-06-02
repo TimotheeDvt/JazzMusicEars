@@ -40,21 +40,10 @@ class AppController {
         this.ytContainer = document.getElementById('youtube-link-container');
         this.ytLink = document.getElementById('youtube-link');
 
-        // Create Export/Import UI dynamically
-        this.exportBtn = document.createElement('button');
-        this.exportBtn.textContent = 'Export Data';
-        this.importBtn = document.createElement('button');
-        this.importBtn.textContent = 'Import Data';
-        this.fileInput = document.createElement('input');
-        this.fileInput.type = 'file';
-        this.fileInput.accept = '.json';
-        this.fileInput.style.display = 'none';
-
-        if (this.manageTunesBtn && this.manageTunesBtn.parentNode) {
-            this.manageTunesBtn.parentNode.insertBefore(this.exportBtn, this.manageTunesBtn.nextSibling);
-            this.manageTunesBtn.parentNode.insertBefore(this.importBtn, this.exportBtn.nextSibling);
-            this.manageTunesBtn.parentNode.insertBefore(this.fileInput, this.importBtn.nextSibling);
-        }
+        // Settings panel elements
+        this.exportBtn = document.getElementById('export-btn');
+        this.importBtn = document.getElementById('import-btn');
+        this.fileInput = document.getElementById('import-file');
 
         this.initEventListeners();
         this.initModalList();

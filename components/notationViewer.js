@@ -86,7 +86,7 @@ export class NotationViewer extends HTMLElement {
         const height = 260;
 
         let svgHtml = `
-            <svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="background:#fff; border:1px solid #cbd5e1; border-radius:4px;">
+            <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; max-width: 100%; max-height: 100%;">
                 <style>
                     .staff-line { stroke: #64748b; stroke-width: 1; }
                     .clef-text { font-family: serif; font-size: 42px; font-weight: bold; fill: #1e293b; }
@@ -151,6 +151,10 @@ export class NotationViewer extends HTMLElement {
 
     render() {
         this.shadowRoot.innerHTML = `
+            <style>
+                :host { display: block; width: 100%; height: 100%; }
+                .score-wrapper { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+            </style>
             <div class="score-wrapper">
                 ${this.generateSVG()}
             </div>
