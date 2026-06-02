@@ -86,7 +86,7 @@ export class NotationViewer extends HTMLElement {
             x = targetMeasure.startX + MEASURE_PADDING_LEFT + ratio * (targetMeasure.endX - targetMeasure.startX - MEASURE_PADDING_LEFT - MEASURE_PADDING_RIGHT);
         }
 
-        const yOffset = targetMeasure.lineIndex * this.layoutSystemHeight;
+        const yOffset = targetMeasure.lineIndex * this.layoutSystemHeight + this.layoutTitleHeight;
         let yStart = this.state.displayMode === 'tabs' ? yOffset + this.layoutTabYOffset + 10 : yOffset + 30;
         let yEnd = this.state.displayMode === 'staff' ? yOffset + 110 : yOffset + (this.state.displayMode === 'both' ? this.layoutSystemHeight - 30 : this.layoutTabYOffset + 90);
 
@@ -326,7 +326,8 @@ export class NotationViewer extends HTMLElement {
         });
 
         const totalLines = currentLine + 1;
-        const height = totalLines * SYSTEM_HEIGHT;
+        const TITLE_HEIGHT = 45;
+        const height = totalLines * SYSTEM_HEIGHT + TITLE_HEIGHT;
 
         let svgHtml = `
             <svg viewBox="0 0 ${WIDTH} ${height}" width="100%" xmlns="http://www.w3.org/2000/svg" style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; display: block;">
@@ -341,6 +342,7 @@ export class NotationViewer extends HTMLElement {
                     .time-sig-text { font-family: serif; font-size: 26px; font-weight: bold; fill: #1e293b; text-anchor: middle; }
                     .bar-line { stroke: #334155; stroke-width: 2; }
                 </style>
+                <text x="${WIDTH / 2}" y="50" font-family="serif" font-size="38" font-weight="bold" fill="#1e293b" text-anchor="middle">${this.state.title}</text>
         `;
 
         // Helper: Converts an absolute beat to an exact (x, lineIndex, yOffset) position
@@ -354,13 +356,13 @@ export class NotationViewer extends HTMLElement {
             return {
                 lineIndex: targetMeasure.lineIndex,
                 x: x,
-                yOffset: targetMeasure.lineIndex * SYSTEM_HEIGHT
+                yOffset: targetMeasure.lineIndex * SYSTEM_HEIGHT + TITLE_HEIGHT
             };
         };
 
         // --- DRAW MUSICAL SYSTEMS ---
         for (let lineIndex = 0; lineIndex < totalLines; lineIndex++) {
-            const yOffset = lineIndex * SYSTEM_HEIGHT;
+            const yOffset = lineIndex * SYSTEM_HEIGHT + TITLE_HEIGHT;
 
             // Draw Standard Notation Staff
             if (drawStaff) {
@@ -413,7 +415,7 @@ export class NotationViewer extends HTMLElement {
             const nextMeasure = measures[i + 1];
             if (currentMeasure.lineIndex === nextMeasure.lineIndex) {
                 const x = nextMeasure.startX;
-                const yOffset = currentMeasure.lineIndex * SYSTEM_HEIGHT;
+                const yOffset = currentMeasure.lineIndex * SYSTEM_HEIGHT + TITLE_HEIGHT;
                 svgHtml += `<line x1="${x}" y1="${yOffset + barLineStartY}" x2="${x}" y2="${yOffset + barLineEndY}" class="bar-line"/>`;
             }
         }
@@ -583,6 +585,7 @@ export class NotationViewer extends HTMLElement {
         // Cache layout bindings to safely interpolate playhead coordinates post-render
         this.layoutMeasures = measures;
         this.layoutSystemHeight = SYSTEM_HEIGHT;
+        this.layoutTitleHeight = TITLE_HEIGHT;
         this.layoutTabYOffset = tabYOffset;
 
         return svgHtml;

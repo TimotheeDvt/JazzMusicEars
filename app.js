@@ -20,7 +20,6 @@ class AppController {
         this.playheadAnimationId = null;
 
         // Cache DOM Elements
-        this.tuneTitle = document.getElementById('tune-title');
         this.tuneKey = document.getElementById('tune-key');
         this.keyDownBtn = document.getElementById('key-down-btn');
         this.keyUpBtn = document.getElementById('key-up-btn');
@@ -320,8 +319,8 @@ class AppController {
         const targetTuneId = this.scheduler.getNextTune(this.selectedTuneIds);
 
         if (!targetTuneId) {
-            this.tuneTitle.textContent = "No Tunes Selected!";
             this.tuneKey.textContent = "Key: --";
+            this.notationDisplay.updateData("No Tunes Selected!", "C", [], []);
             return;
         }
 
@@ -343,7 +342,6 @@ class AppController {
             audioEngine.tempo = this.currentTransposedTune.originalTempo;
 
             // Update basic text headers
-            this.tuneTitle.textContent = this.currentTransposedTune.title;
             this.tuneKey.textContent = `Key: ${this.currentTransposedTune.keyName}`;
 
             // Populate Performance Link UI Elements
@@ -360,8 +358,8 @@ class AppController {
             this.updateDisplay();
         } catch (err) {
             console.error(`Failed to load tune: ${targetTuneId}`, err);
-            this.tuneTitle.textContent = "Error loading tune";
             this.tuneKey.textContent = "Key: --";
+            this.notationDisplay.updateData("Error loading tune", "C", [], []);
         }
     }
 

@@ -104,21 +104,14 @@ input[type="number"] {
     border: 1px solid var(--border-color);
 }
 
-#status-card {
+.score-corner-settings {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
     gap: 15px;
-}
-
-#tune-title-link {
-    display: flex;
-    gap: 10px;
     align-items: center;
-}
-
-#tune-title {
-    margin: 0;
+    z-index: 10;
 }
 
 .key-container {
@@ -150,6 +143,8 @@ input[type="number"] {
 .notation-container {
     flex: 1;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .badge {

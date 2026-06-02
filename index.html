@@ -32,29 +32,24 @@
 
     <main>
         <div class="left-column">
-            <section id="status-card" class="card">
-                <span id="tune-title-link">
+            <section class="card notation-container" style="position: relative;">
+                <div class="score-corner-settings">
                     <div id="youtube-link-container" class="hidden">
                         <a id="youtube-link" href="#" target="_blank" title="Listen on YouTube">
                             <svg viewBox="0 0 24 24">
-                                <path
-                                    d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" />
+                                <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" />
                             </svg>
                         </a>
                     </div>
-                    <h2 id="tune-title">Loading Tune...</h2>
-                </span>
-                <div class="key-container">
-                    <button id="key-reset-btn" class="btn secondary" style="padding: 0.2rem 0.5rem; margin: 0; font-size: 1rem; line-height: 1; border-radius: 4px;" title="Reset to Original Key">↻</button>
-                    <div id="tune-key" class="badge">Key: --</div>
-                    <div class="key-buttons">
-                        <button id="key-up-btn" class="key-btn btn secondary" title="Transpose Up">▲</button>
-                        <button id="key-down-btn" class="key-btn btn secondary" title="Transpose Down">▼</button>
+                    <div class="key-container">
+                        <button id="key-reset-btn" class="btn secondary" style="padding: 0.2rem 0.5rem; margin: 0; font-size: 1rem; line-height: 1; border-radius: 4px;" title="Reset to Original Key">↻</button>
+                        <div id="tune-key" class="badge">Key: --</div>
+                        <div class="key-buttons">
+                            <button id="key-up-btn" class="key-btn btn secondary" title="Transpose Up">▲</button>
+                            <button id="key-down-btn" class="key-btn btn secondary" title="Transpose Down">▼</button>
+                        </div>
                     </div>
                 </div>
-            </section>
-
-            <section class="card notation-container">
                 <notation-viewer id="notation-display"></notation-viewer>
             </section>
         </div>
