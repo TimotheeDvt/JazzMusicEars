@@ -22,7 +22,7 @@ export class Scheduler {
         localStorage.setItem('jazz_confidence_v1', JSON.stringify(this.confidenceMap));
     }
 
-    getNextTune(selectedIds, poolLimit) {
+    getNextTune(selectedIds) {
         // Filter down by active user selection settings
         let pool = this.allTuneIds.filter(id => selectedIds.includes(id));
 
@@ -46,8 +46,8 @@ export class Scheduler {
             }
         });
 
-        // Limit scope pool if restriction active
-        const processingPool = weightedPool.slice(0, poolLimit * 4 || weightedPool.length);
+        // Pull from weighted pool
+        const processingPool = weightedPool;
         const randomIndex = Math.floor(Math.random() * processingPool.length);
 
         const nextTuneId = processingPool[randomIndex];

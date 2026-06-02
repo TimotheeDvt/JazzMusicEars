@@ -12,10 +12,11 @@ class AppController {
         this.currentTransposedTune = null;
         this.currentTargetKeyIdx = 0;
         this.selectedTuneIds = [...jazzStandards]; // All selected by default
-        this.poolSize = 10;
         this.revealMelodyState = 'empty';
         this.revealChordsState = false;
         this.displayMode = 'both';
+        this.activePlayback = null;
+        this.playbackTimeout = null;
 
         // Cache DOM Elements
         this.tuneTitle = document.getElementById('tune-title');
@@ -23,7 +24,7 @@ class AppController {
         this.keyDownBtn = document.getElementById('key-down-btn');
         this.keyUpBtn = document.getElementById('key-up-btn');
         this.notationDisplay = document.getElementById('notation-display');
-        this.poolSizeInput = document.getElementById('pool-size');
+        this.tempoInput = document.getElementById('tempo');
         this.displayModeSelect = document.getElementById('display-mode');
         this.keyResetBtn = document.getElementById('key-reset-btn');
 
@@ -52,6 +53,8 @@ class AppController {
         this.importBtn = document.getElementById('import-btn');
         this.fileInput = document.getElementById('import-file');
 
+        audioEngine.tempo = parseInt(this.tempoInput.value) || 120;
+
         this.initEventListeners();
         this.initModalList();
         this.loadNextTune();
@@ -59,14 +62,30 @@ class AppController {
 
     initEventListeners() {
         this.playBothBtn.addEventListener('click', () => {
-            if (this.currentTransposedTune) {
-                audioEngine.playBoth(this.currentTransposedTune.melody, this.currentTransposedTune.chords);
+            if (this.activePlayback === 'both') {
+                this.stopPlayback();
+            } else {
+                this.stopPlayback();
+                if (this.currentTransposedTune) {
+                    this.activePlayback = 'both';
+                    this.playBothBtn.textContent = "Stop Both";
+                    const duration = audioEngine.playBoth(this.currentTransposedTune.melody, this.currentTransposedTune.chords);
+                    this.playbackTimeout = setTimeout(() => this.resetPlaybackUI(), duration * 1000);
+                }
             }
         });
 
         this.playMelodyBtn.addEventListener('click', () => {
-            if (this.currentTransposedTune) {
-                audioEngine.playMelody(this.currentTransposedTune.melody);
+            if (this.activePlayback === 'melody') {
+                this.stopPlayback();
+            } else {
+                this.stopPlayback();
+                if (this.currentTransposedTune) {
+                    this.activePlayback = 'melody';
+                    this.playMelodyBtn.textContent = "Stop Melody";
+                    const duration = audioEngine.playMelody(this.currentTransposedTune.melody);
+                    this.playbackTimeout = setTimeout(() => this.resetPlaybackUI(), duration * 1000);
+                }
             }
         });
 
@@ -74,10 +93,9 @@ class AppController {
             if (!this.currentTransposedTune) return;
 
             if (audioEngine.isPlayingChords) {
-                audioEngine.stopChordsLoop();
-                this.toggleChordsBtn.textContent = "Loop Chords: OFF";
-                this.toggleChordsBtn.classList.remove('primary');
+                this.stopPlayback();
             } else {
+                this.stopPlayback();
                 audioEngine.startChordsLoop(this.currentTransposedTune.chords);
                 this.toggleChordsBtn.textContent = "Loop Chords: ON 🔄";
                 this.toggleChordsBtn.classList.add('primary');
@@ -113,9 +131,8 @@ class AppController {
         this.nextTuneBtn.classList.remove('hidden');
         this.nextTuneBtn.addEventListener('click', () => this.loadNextTune());
 
-        // Pool Constraints UI updates
-        this.poolSizeInput.addEventListener('change', (e) => {
-            this.poolSize = parseInt(e.target.value) || 10;
+        this.tempoInput.addEventListener('change', (e) => {
+            audioEngine.tempo = parseInt(e.target.value) || 120;
         });
 
         this.displayModeSelect.addEventListener('change', (e) => {
@@ -205,10 +222,7 @@ class AppController {
     shiftKey(direction) {
         if (!this.currentOriginalTune) return;
 
-        // Reset loops
-        audioEngine.stopChordsLoop();
-        this.toggleChordsBtn.textContent = "Loop Chords: OFF";
-        this.toggleChordsBtn.classList.remove('primary');
+        this.stopPlayback();
 
         this.currentTargetKeyIdx += direction;
         if (this.currentTargetKeyIdx < 0) this.currentTargetKeyIdx = KEYS.length - 1;
@@ -224,10 +238,7 @@ class AppController {
     resetToOriginalKey() {
         if (!this.currentOriginalTune) return;
 
-        // Reset loops
-        audioEngine.stopChordsLoop();
-        this.toggleChordsBtn.textContent = "Loop Chords: OFF";
-        this.toggleChordsBtn.classList.remove('primary');
+        this.stopPlayback();
 
         // Extract absolute original key target
         const origRootMatch = this.currentOriginalTune.originalKey.match(/^[A-G][#b]?/i);
@@ -243,18 +254,29 @@ class AppController {
         }
     }
 
-    async loadNextTune() {
-        // Reset ongoing loops
-        audioEngine.stopChordsLoop();
+    stopPlayback() {
+        audioEngine.stopAll();
+        clearTimeout(this.playbackTimeout);
+        this.resetPlaybackUI();
         this.toggleChordsBtn.textContent = "Loop Chords: OFF";
         this.toggleChordsBtn.classList.remove('primary');
+    }
+
+    resetPlaybackUI() {
+        this.playBothBtn.textContent = "Play Both";
+        this.playMelodyBtn.textContent = "Play Melody";
+        this.activePlayback = null;
+    }
+
+    async loadNextTune() {
+        this.stopPlayback();
 
         // Reset UI Components state
         document.querySelectorAll('.conf-btn').forEach(b => b.classList.remove('selected'));
         this.evaluationCard.classList.remove('hidden');
 
-        // Pick next tune using pool limits and choices
-        const targetTuneId = this.scheduler.getNextTune(this.selectedTuneIds, this.poolSize);
+        // Pick next tune
+        const targetTuneId = this.scheduler.getNextTune(this.selectedTuneIds);
 
         if (!targetTuneId) {
             this.tuneTitle.textContent = "No Tunes Selected!";

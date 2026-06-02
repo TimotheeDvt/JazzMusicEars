@@ -6,6 +6,8 @@ class AudioEngine {
         this.ctx = null;
         this.chordIntervalId = null;
         this.isPlayingChords = false;
+        this.tempo = 120;
+        this.activeNodes = new Set();
     }
 
     init() {
@@ -17,6 +19,10 @@ class AudioEngine {
     // Helper to map MIDI to raw frequency
     midiToFreq(midi) {
         return 440 * Math.pow(2, (midi - 69) / 12);
+    }
+
+    get secPerBeat() {
+        return 60 / this.tempo;
     }
 
     playTone(midi, startTime, duration, type = "piano", volume = 0.3) {
@@ -63,6 +69,13 @@ class AudioEngine {
             filter.connect(masterGain);
             masterGain.connect(this.ctx.destination);
 
+            osc1.onended = () => this.activeNodes.delete(osc1);
+            osc2.onended = () => this.activeNodes.delete(osc2);
+            osc3.onended = () => this.activeNodes.delete(osc3);
+            this.activeNodes.add(osc1);
+            this.activeNodes.add(osc2);
+            this.activeNodes.add(osc3);
+
             osc1.start(startTime); osc2.start(startTime); osc3.start(startTime);
             osc1.stop(startTime + duration); osc2.stop(startTime + duration); osc3.stop(startTime + duration);
             return;
@@ -84,6 +97,9 @@ class AudioEngine {
         osc.connect(gainNode);
         gainNode.connect(this.ctx.destination);
 
+        osc.onended = () => this.activeNodes.delete(osc);
+        this.activeNodes.add(osc);
+
         osc.start(startTime);
         osc.stop(startTime + duration);
     }
@@ -91,6 +107,7 @@ class AudioEngine {
     playMelody(melody) {
         this.init();
         let startNow = this.ctx.currentTime;
+        let maxBeat = 0;
 
         const mergedMelody = [];
         melody.forEach(note => {
@@ -103,15 +120,19 @@ class AudioEngine {
         });
 
         mergedMelody.forEach(note => {
-            const startTime = startNow + (note.beat * 0.5);
-            const seconds = note.duration * 0.5;
+            const startTime = startNow + (note.beat * this.secPerBeat);
+            const seconds = note.duration * this.secPerBeat;
             this.playTone(note.pitch, startTime, seconds, "piano", 0.5);
+            maxBeat = Math.max(maxBeat, note.beat + note.duration);
         });
+
+        return maxBeat * this.secPerBeat;
     }
 
     playBoth(melody, chords) {
         this.init();
         let startNow = this.ctx.currentTime;
+        let maxBeat = 0;
 
         const mergedMelody = [];
         melody.forEach(note => {
@@ -124,21 +145,25 @@ class AudioEngine {
         });
 
         mergedMelody.forEach(note => {
-            const startTime = startNow + (note.beat * 0.5);
-            const seconds = note.duration * 0.5;
+            const startTime = startNow + (note.beat * this.secPerBeat);
+            const seconds = note.duration * this.secPerBeat;
             this.playTone(note.pitch, startTime, seconds, "piano", 0.5);
+            maxBeat = Math.max(maxBeat, note.beat + note.duration);
         });
 
         chords.forEach(chord => {
-            const startTime = startNow + (chord.beat * 0.5);
-            const seconds = chord.duration * 0.5;
+            const startTime = startNow + (chord.beat * this.secPerBeat);
+            const seconds = chord.duration * this.secPerBeat;
             const pitches = this.getChordPitches(chord.root, chord.type);
 
             this.playTone(chord.root - 12, startTime, seconds, "piano", 0.25); // Bass Root
             pitches.forEach(pitch => {
                 this.playTone(pitch, startTime, seconds, "piano", 0.15); // Chord Voicings
             });
+            maxBeat = Math.max(maxBeat, chord.beat + chord.duration);
         });
+
+        return maxBeat * this.secPerBeat;
     }
 
     // Simple root + basic triad/seventhvoicing strategy generator
@@ -162,8 +187,8 @@ class AudioEngine {
         const playIteration = () => {
             let startNow = this.ctx.currentTime;
             chords.forEach(chord => {
-                const startTime = startNow + (chord.beat * 0.5);
-                const seconds = chord.duration * 0.5;
+                const startTime = startNow + (chord.beat * this.secPerBeat);
+                const seconds = chord.duration * this.secPerBeat;
                 const pitches = this.getChordPitches(chord.root, chord.type);
 
                 this.playTone(chord.root - 12, startTime, seconds, "piano", 0.25); // Bass Root
@@ -175,7 +200,7 @@ class AudioEngine {
 
         // Calculate full length of chart to loop cleanly
         const lastChord = chords[chords.length - 1];
-        const totalDurationMs = lastChord ? (lastChord.beat + lastChord.duration) * 500 : 0;
+        const totalDurationMs = lastChord ? (lastChord.beat + lastChord.duration) * this.secPerBeat * 1000 : 0;
 
         if (totalDurationMs > 0) {
             playIteration();
@@ -189,6 +214,14 @@ class AudioEngine {
             this.chordIntervalId = null;
         }
         this.isPlayingChords = false;
+    }
+
+    stopAll() {
+        this.activeNodes.forEach(node => {
+            try { node.stop(); } catch (e) {}
+        });
+        this.activeNodes.clear();
+        this.stopChordsLoop();
     }
 }
 
