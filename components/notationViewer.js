@@ -222,26 +222,33 @@ export class NotationViewer extends HTMLElement {
             // Draw Ledger Lines for standard notation
             if (staffY >= 100) {
                 for (let ly = 100; ly <= staffY; ly += 10) {
-                    svgHtml += `<line x1="${noteX - 8}" y1="${ly}" x2="${noteX + 8}" y2="${ly}" stroke="#0f172a" stroke-width="1.5"/>`;
+                    svgHtml += `<line x1="${noteX - 12}" y1="${ly}" x2="${noteX + 12}" y2="${ly}" stroke="#0f172a" stroke-width="2"/>`;
                 }
             } else if (staffY <= 40) {
                 for (let ly = 40; ly >= staffY; ly -= 10) {
-                    svgHtml += `<line x1="${noteX - 8}" y1="${ly}" x2="${noteX + 8}" y2="${ly}" stroke="#0f172a" stroke-width="1.5"/>`;
+                    svgHtml += `<line x1="${noteX - 12}" y1="${ly}" x2="${noteX + 12}" y2="${ly}" stroke="#0f172a" stroke-width="2"/>`;
                 }
             }
 
             // Draw Accidental
             if (staffInfo.accidental) {
                 const accSymbol = staffInfo.accidental === 'n' ? '♮' : (staffInfo.accidental === 'b' ? '♭' : '♯');
-                svgHtml += `<text x="${noteX - 16}" y="${staffY + 6}" class="accidental-text">${accSymbol}</text>`;
+                svgHtml += `<text x="${noteX - 20}" y="${staffY + 6}" class="accidental-text">${accSymbol}</text>`;
             }
 
-            // Draw Standard Notation Note Head & Stem
-            svgHtml += `<circle cx="${noteX}" cy="${staffY}" r="5" class="note-head"/>`;
-            svgHtml += `<line x1="${noteX + 5}" y1="${staffY}" x2="${noteX + 5}" y2="${staffY - 25}" stroke="#0f172a" stroke-width="1.5"/>`;
+            // Draw Standard Notation Note Head
+            svgHtml += `<circle cx="${noteX}" cy="${staffY}" r="5.5" class="note-head"/>`;
+
+            // Draw Stem direction based on staff position
+            // Center line is B4 (y=70). Notes on or above the center line get downward stems.
+            if (staffY <= 70) {
+                svgHtml += `<line x1="${noteX - 5}" y1="${staffY}" x2="${noteX - 5}" y2="${staffY + 30}" stroke="#0f172a" stroke-width="1.5"/>`;
+            } else {
+                svgHtml += `<line x1="${noteX + 5}" y1="${staffY}" x2="${noteX + 5}" y2="${staffY - 30}" stroke="#0f172a" stroke-width="1.5"/>`;
+            }
 
             // Draw Guitar Tab Note Intersection Circle Overlay
-            svgHtml += `<circle cx="${noteX}" cy="${tabY}" r="7" fill="#fff"/>`;
+            svgHtml += `<circle cx="${noteX}" cy="${tabY}" r="8" fill="#fff"/>`;
             svgHtml += `<text x="${noteX}" y="${tabY + 4}" class="note-text" fill="#000" style="fill: #000; font-size:12px;">${guitar.fret}</text>`;
 
             noteX += 70; // Step right
