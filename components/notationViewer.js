@@ -338,11 +338,11 @@ export class NotationViewer extends HTMLElement {
                     .note-head { fill: #0f172a; }
                     .note-text { font-family: sans-serif; font-size: 11px; font-weight: bold; fill: #fff; text-anchor: middle; }
                     .accidental-text { font-family: serif; font-size: 20px; font-weight: bold; fill: #0f172a; }
-                    .chord-label { font-family: sans-serif; font-size: 16px; font-weight: bold; fill: #4f46e5; text-anchor: middle; }
-                    .time-sig-text { font-family: serif; font-size: 26px; font-weight: bold; fill: #1e293b; text-anchor: middle; }
+                    .chord-label { font-family: 'Kalam', cursive; font-size: 20px; font-weight: bold; fill: #4f46e5; text-anchor: middle; }
+                    .time-sig-text { font-family: 'Kalam', cursive; font-size: 32px; font-weight: bold; fill: #1e293b; text-anchor: middle; }
                     .bar-line { stroke: #334155; stroke-width: 2; }
                 </style>
-                <text x="${WIDTH / 2}" y="50" font-family="serif" font-size="38" font-weight="bold" fill="#1e293b" text-anchor="middle">${this.state.title}</text>
+                <text x="${WIDTH / 2}" y="50" font-family="'Kalam', cursive" font-size="42" font-weight="bold" fill="#1e293b" text-anchor="middle">${this.state.title}</text>
         `;
 
         // Helper: Converts an absolute beat to an exact (x, lineIndex, yOffset) position
