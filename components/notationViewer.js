@@ -112,8 +112,14 @@ export class NotationViewer extends HTMLElement {
 
     // Helper map to convert absolute MIDI numbers into standard string/fret combinations
     // Simple structural mapping for standard EADGBE guitar tuning
-    midiToGuitar(midi) {
+    midiToGuitar(midi, forceStringNum = null) {
         const strings = [64, 59, 55, 50, 45, 40]; // E, B, G, D, A, E positions
+
+        if (forceStringNum && forceStringNum >= 1 && forceStringNum <= 6) {
+            const rootPitch = strings[forceStringNum - 1];
+            return { stringNum: forceStringNum, fret: midi - rootPitch };
+        }
+
         for (let sIdx = 0; sIdx < strings.length; sIdx++) {
             const rootPitch = strings[sIdx];
             if (midi >= rootPitch && midi <= rootPitch + 15) {
@@ -455,7 +461,7 @@ export class NotationViewer extends HTMLElement {
             }
 
             const staffInfo = this.midiToStaffInfo(note.pitch, key);
-            const guitar = this.midiToGuitar(note.pitch);
+            const guitar = this.midiToGuitar(note.pitch, note.stringNum);
             const noteStartPos = getPos(note.beat);
 
             // Draw Accidental (Once per actual note)

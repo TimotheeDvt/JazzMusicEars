@@ -81,11 +81,22 @@ export function parseMelodyString(melodyStr, keyName = "C") {
             continue;
         }
 
-        const [notePartRaw, durPart] = token.split(':');
+        const [notePartRaw, durStrPart] = token.split(':');
+        let [durPart, strPart] = durStrPart.split('_');
         if (!notePartRaw || !durPart) continue;
 
-        let isTied = false;
         let notePart = notePartRaw;
+        let stringNum = null;
+
+        if (strPart) {
+            const strMatch = strPart.match(/([1-6])$/);
+            if (strMatch) {
+                stringNum = parseInt(strMatch[1], 10);
+                strPart = strPart.replace(/([1-6])$/, '');
+            }
+        }
+
+        let isTied = false;
         if (notePart.startsWith('-')) {
             isTied = true;
             notePart = notePart.substring(1);
@@ -101,7 +112,9 @@ export function parseMelodyString(melodyStr, keyName = "C") {
 
         const pitch = noteToMidi(notePart);
         if (pitch !== null) {
-            melody.push({ pitch, duration: duration, beat: currentBeat, tied: isTied });
+            const noteObj = { pitch, duration: duration, beat: currentBeat, tied: isTied };
+            if (stringNum !== null) noteObj.stringNum = stringNum;
+            melody.push(noteObj);
             currentBeat += duration;
         }
     }
