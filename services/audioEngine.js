@@ -127,10 +127,10 @@ class AudioEngine {
         osc.stop(startTime + duration);
     }
 
-    playMelody(melody) {
+    playMelody(melody, startBeat = 0) {
         this.init();
         let startNow = this.ctx.currentTime;
-        let maxBeat = 0;
+        let maxBeat = startBeat;
 
         const mergedMelody = [];
         melody.forEach(note => {
@@ -143,25 +143,32 @@ class AudioEngine {
         });
 
         mergedMelody.forEach(note => {
-            const startTime = startNow + (note.beat * this.secPerBeat);
-            const seconds = note.duration * this.secPerBeat;
+            if (note.beat + note.duration <= startBeat) return;
+            let offsetBeat = note.beat - startBeat;
+            let duration = note.duration;
+            if (offsetBeat < 0) {
+                duration += offsetBeat;
+                offsetBeat = 0;
+            }
+            const startTime = startNow + (offsetBeat * this.secPerBeat);
+            const seconds = duration * this.secPerBeat;
             this.playTone(note.pitch, startTime, seconds, "piano", 0.5);
             maxBeat = Math.max(maxBeat, note.beat + note.duration);
         });
 
         if (this.clickEnabled) {
-            for (let b = 0; b < Math.ceil(maxBeat); b++) {
-                this.playClick(startNow + (b * this.secPerBeat));
+            for (let b = Math.ceil(startBeat); b < Math.ceil(maxBeat); b++) {
+                this.playClick(startNow + ((b - startBeat) * this.secPerBeat));
             }
         }
 
-        return maxBeat * this.secPerBeat;
+        return (maxBeat - startBeat) * this.secPerBeat;
     }
 
-    playBoth(melody, chords) {
+    playBoth(melody, chords, startBeat = 0) {
         this.init();
         let startNow = this.ctx.currentTime;
-        let maxBeat = 0;
+        let maxBeat = startBeat;
 
         const mergedMelody = [];
         melody.forEach(note => {
@@ -174,15 +181,29 @@ class AudioEngine {
         });
 
         mergedMelody.forEach(note => {
-            const startTime = startNow + (note.beat * this.secPerBeat);
-            const seconds = note.duration * this.secPerBeat;
+            if (note.beat + note.duration <= startBeat) return;
+            let offsetBeat = note.beat - startBeat;
+            let duration = note.duration;
+            if (offsetBeat < 0) {
+                duration += offsetBeat;
+                offsetBeat = 0;
+            }
+            const startTime = startNow + (offsetBeat * this.secPerBeat);
+            const seconds = duration * this.secPerBeat;
             this.playTone(note.pitch, startTime, seconds, "piano", 0.5);
             maxBeat = Math.max(maxBeat, note.beat + note.duration);
         });
 
         chords.forEach(chord => {
-            const startTime = startNow + (chord.beat * this.secPerBeat);
-            const seconds = chord.duration * this.secPerBeat;
+            if (chord.beat + chord.duration <= startBeat) return;
+            let offsetBeat = chord.beat - startBeat;
+            let duration = chord.duration;
+            if (offsetBeat < 0) {
+                duration += offsetBeat;
+                offsetBeat = 0;
+            }
+            const startTime = startNow + (offsetBeat * this.secPerBeat);
+            const seconds = duration * this.secPerBeat;
             const pitches = this.getChordPitches(chord.root, chord.type);
 
             this.playTone(chord.root - 12, startTime, seconds, "piano", 0.25); // Bass Root
@@ -193,12 +214,12 @@ class AudioEngine {
         });
 
         if (this.clickEnabled) {
-            for (let b = 0; b < Math.ceil(maxBeat); b++) {
-                this.playClick(startNow + (b * this.secPerBeat));
+            for (let b = Math.ceil(startBeat); b < Math.ceil(maxBeat); b++) {
+                this.playClick(startNow + ((b - startBeat) * this.secPerBeat));
             }
         }
 
-        return maxBeat * this.secPerBeat;
+        return (maxBeat - startBeat) * this.secPerBeat;
     }
 
     // Simple root + basic triad/seventhvoicing strategy generator
@@ -215,7 +236,7 @@ class AudioEngine {
         return intervals.map(interval => root + interval);
     }
 
-    startChordsLoop(chords) {
+    startChordsLoop(chords, startBeat = 0) {
         this.init();
         if (this.isPlayingChords) this.stopChordsLoop();
         this.isPlayingChords = true;
@@ -225,11 +246,20 @@ class AudioEngine {
         const totalBeats = lastChord ? (lastChord.beat + lastChord.duration) : 0;
         const totalDurationMs = totalBeats * this.secPerBeat * 1000;
 
+        let isFirstIteration = true;
+
         const playIteration = () => {
             let startNow = this.ctx.currentTime;
+            let currentStartBeat = isFirstIteration ? startBeat : 0;
+            isFirstIteration = false;
+
             chords.forEach(chord => {
-                const startTime = startNow + (chord.beat * this.secPerBeat);
-                const seconds = chord.duration * this.secPerBeat;
+                if (chord.beat + chord.duration <= currentStartBeat) return;
+                let offsetBeat = chord.beat - currentStartBeat;
+                let duration = chord.duration;
+                if (offsetBeat < 0) { duration += offsetBeat; offsetBeat = 0; }
+                const startTime = startNow + (offsetBeat * this.secPerBeat);
+                const seconds = duration * this.secPerBeat;
                 const pitches = this.getChordPitches(chord.root, chord.type);
 
                 this.playTone(chord.root - 12, startTime, seconds, "piano", 0.25); // Bass Root
@@ -239,15 +269,20 @@ class AudioEngine {
             });
 
             if (this.clickEnabled) {
-                for (let b = 0; b < Math.ceil(totalBeats); b++) {
-                    this.playClick(startNow + (b * this.secPerBeat));
+                for (let b = Math.ceil(currentStartBeat); b < Math.ceil(totalBeats); b++) {
+                    this.playClick(startNow + ((b - currentStartBeat) * this.secPerBeat));
                 }
             }
         };
 
         if (totalDurationMs > 0) {
             playIteration();
-            this.chordIntervalId = setInterval(playIteration, totalDurationMs);
+            const firstIterationDurationMs = (totalBeats - startBeat) * this.secPerBeat * 1000;
+            this.chordIntervalId = setTimeout(() => {
+                if (!this.isPlayingChords) return;
+                playIteration();
+                this.chordIntervalId = setInterval(playIteration, totalDurationMs);
+            }, firstIterationDurationMs);
         }
         return totalBeats;
     }

@@ -71,9 +71,9 @@ class AppController {
                 if (this.currentTransposedTune) {
                     this.activePlayback = 'both';
                     this.playBothBtn.textContent = "Stop Both";
-                    const duration = audioEngine.playBoth(this.currentTransposedTune.melody, this.currentTransposedTune.chords);
+                    const duration = audioEngine.playBoth(this.currentTransposedTune.melody, this.currentTransposedTune.chords, 0);
                     const totalBeats = duration / audioEngine.secPerBeat;
-                    this.startPlayhead(totalBeats, false);
+                    this.startPlayhead(0, totalBeats, false);
                     this.playbackTimeout = setTimeout(() => this.stopPlayback(), duration * 1000);
                 }
             }
@@ -87,9 +87,9 @@ class AppController {
                 if (this.currentTransposedTune) {
                     this.activePlayback = 'melody';
                     this.playMelodyBtn.textContent = "Stop Melody";
-                    const duration = audioEngine.playMelody(this.currentTransposedTune.melody);
+                    const duration = audioEngine.playMelody(this.currentTransposedTune.melody, 0);
                     const totalBeats = duration / audioEngine.secPerBeat;
-                    this.startPlayhead(totalBeats, false);
+                    this.startPlayhead(0, totalBeats, false);
                     this.playbackTimeout = setTimeout(() => this.stopPlayback(), duration * 1000);
                 }
             }
@@ -102,12 +102,12 @@ class AppController {
                 this.stopPlayback();
             } else {
                 this.stopPlayback();
-                const totalBeats = audioEngine.startChordsLoop(this.currentTransposedTune.chords);
+                const totalBeats = audioEngine.startChordsLoop(this.currentTransposedTune.chords, 0);
                 if (totalBeats > 0) {
                     this.activePlayback = 'chords';
                     this.toggleChordsBtn.textContent = "Stop Chords 🔄";
                     this.toggleChordsBtn.classList.add('primary');
-                    this.startPlayhead(totalBeats, true);
+                    this.startPlayhead(0, totalBeats, true);
                 }
             }
         });
@@ -170,6 +170,11 @@ class AppController {
         this.keyDownBtn.addEventListener('click', () => this.shiftKey(-1));
         this.keyUpBtn.addEventListener('click', () => this.shiftKey(1));
         this.keyResetBtn.addEventListener('click', () => this.resetToOriginalKey());
+
+        this.notationDisplay.addEventListener('seek', (e) => {
+            const beat = e.detail.beat;
+            this.seekAndPlay(beat);
+        });
     }
 
     async initModalList() {
@@ -288,16 +293,51 @@ class AppController {
         this.toggleChordsBtn.classList.remove('primary');
     }
 
-    startPlayhead(totalBeats, isLoop = false) {
+    seekAndPlay(startBeat) {
+        if (!this.currentTransposedTune) return;
+        
+        const mode = this.activePlayback || 'both'; // Default to playing both if playback is fully stopped
+        
+        this.stopPlayback();
+        
+        if (mode === 'both') {
+            this.activePlayback = 'both';
+            this.playBothBtn.textContent = "Stop Both";
+            const duration = audioEngine.playBoth(this.currentTransposedTune.melody, this.currentTransposedTune.chords, startBeat);
+            const totalBeats = (duration / audioEngine.secPerBeat) + startBeat;
+            this.startPlayhead(startBeat, totalBeats, false);
+            this.playbackTimeout = setTimeout(() => this.stopPlayback(), duration * 1000);
+        } else if (mode === 'melody') {
+            this.activePlayback = 'melody';
+            this.playMelodyBtn.textContent = "Stop Melody";
+            const duration = audioEngine.playMelody(this.currentTransposedTune.melody, startBeat);
+            const totalBeats = (duration / audioEngine.secPerBeat) + startBeat;
+            this.startPlayhead(startBeat, totalBeats, false);
+            this.playbackTimeout = setTimeout(() => this.stopPlayback(), duration * 1000);
+        } else if (mode === 'chords') {
+            const totalBeats = audioEngine.startChordsLoop(this.currentTransposedTune.chords, startBeat);
+            if (totalBeats > 0) {
+                this.activePlayback = 'chords';
+                this.toggleChordsBtn.textContent = "Stop Chords 🔄";
+                this.toggleChordsBtn.classList.add('primary');
+                this.startPlayhead(startBeat, totalBeats, true);
+            }
+        }
+    }
+
+    startPlayhead(startBeat, totalBeats, isLoop = false) {
         const startTime = audioEngine.ctx.currentTime;
         const animate = () => {
             if (!this.activePlayback) return;
             
             const elapsed = audioEngine.ctx.currentTime - startTime;
-            let currentBeat = elapsed / audioEngine.secPerBeat;
+            let currentBeat = startBeat + (elapsed / audioEngine.secPerBeat);
 
-            if (isLoop && totalBeats > 0) currentBeat = currentBeat % totalBeats;
-            else if (currentBeat > totalBeats) currentBeat = totalBeats;
+            if (isLoop && totalBeats > 0) {
+                if (currentBeat >= totalBeats) currentBeat = currentBeat % totalBeats;
+            } else if (currentBeat > totalBeats) {
+                currentBeat = totalBeats;
+            }
 
             if (this.notationDisplay) this.notationDisplay.setPlayhead(currentBeat);
 

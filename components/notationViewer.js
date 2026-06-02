@@ -354,7 +354,7 @@ export class NotationViewer extends HTMLElement {
         const height = totalLines * SYSTEM_HEIGHT + TITLE_HEIGHT;
 
         let svgHtml = `
-            <svg viewBox="0 0 ${WIDTH} ${height}" width="100%" xmlns="http://www.w3.org/2000/svg" style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; display: block;">
+            <svg viewBox="0 0 ${WIDTH} ${height}" width="100%" xmlns="http://www.w3.org/2000/svg" style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; display: block; cursor: pointer;">
                 <style>
                     .staff-line { stroke: #64748b; stroke-width: 1; }
                     .clef-text { font-family: serif; font-size: 42px; font-weight: bold; fill: #1e293b; }
@@ -682,6 +682,50 @@ export class NotationViewer extends HTMLElement {
                 ${this.generateSVG()}
             </div>
         `;
+
+        const svg = this.shadowRoot.querySelector('svg');
+        if (svg) {
+            svg.addEventListener('click', (e) => {
+                if (!this.layoutMeasures || this.layoutMeasures.length === 0) return;
+                
+                const pt = svg.createSVGPoint();
+                pt.x = e.clientX;
+                pt.y = e.clientY;
+                const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+                
+                let lineIndex = Math.floor((svgP.y - this.layoutTitleHeight) / this.layoutSystemHeight);
+                if (lineIndex < 0) lineIndex = 0;
+                
+                const measuresInLine = this.layoutMeasures.filter(m => m.lineIndex === lineIndex);
+                if (measuresInLine.length === 0) {
+                    const lastM = this.layoutMeasures[this.layoutMeasures.length - 1];
+                    this.dispatchEvent(new CustomEvent('seek', { detail: { beat: lastM.startBeat } }));
+                    return;
+                }
+                
+                let clickedMeasure = measuresInLine.find(m => svgP.x >= m.startX && svgP.x <= m.endX);
+                if (!clickedMeasure) {
+                    if (svgP.x < measuresInLine[0].startX) clickedMeasure = measuresInLine[0];
+                    else clickedMeasure = measuresInLine[measuresInLine.length - 1];
+                }
+                
+                let closestBeat = clickedMeasure.startBeat;
+                let minDist = Infinity;
+                
+                if (clickedMeasure.beats && clickedMeasure.beats.length > 0) {
+                    clickedMeasure.beats.forEach(b => {
+                        const bx = clickedMeasure.beatPositions[b];
+                        const dist = Math.abs(bx - svgP.x);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            closestBeat = b;
+                        }
+                    });
+                }
+                
+                this.dispatchEvent(new CustomEvent('seek', { detail: { beat: closestBeat } }));
+            });
+        }
     }
 }
 
