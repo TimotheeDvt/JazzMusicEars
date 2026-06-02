@@ -32,6 +32,84 @@ export class NotationViewer extends HTMLElement {
         this.render();
     }
 
+    setPlayhead(beat) {
+        const playhead = this.shadowRoot.getElementById('playhead');
+        if (!playhead) return;
+
+        if (beat === null || !this.layoutMeasures || this.layoutMeasures.length === 0) {
+            playhead.setAttribute('display', 'none');
+            const wrapper = this.shadowRoot.querySelector('.score-wrapper');
+            if (wrapper && beat === null) {
+                wrapper.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+            return;
+        }
+
+        let targetMeasure = this.layoutMeasures.find(m => beat >= m.startBeat - 0.001 && beat < m.endBeat - 0.001);
+        if (!targetMeasure) {
+            targetMeasure = this.layoutMeasures[this.layoutMeasures.length - 1];
+            if (beat > targetMeasure.endBeat) beat = targetMeasure.endBeat;
+        }
+
+        const MEASURE_PADDING_LEFT = 25;
+        const MEASURE_PADDING_RIGHT = 15;
+
+        let x = targetMeasure.startX + MEASURE_PADDING_LEFT;
+        const beats = targetMeasure.beats;
+        if (beats && beats.length > 0) {
+            let prevBeat = targetMeasure.startBeat;
+            let prevX = targetMeasure.startX + MEASURE_PADDING_LEFT;
+            
+            let nextBeat = targetMeasure.endBeat;
+            let nextX = targetMeasure.endX - MEASURE_PADDING_RIGHT;
+
+            for (let i = 0; i < beats.length; i++) {
+                if (beats[i] <= beat && beats[i] >= prevBeat) {
+                    prevBeat = beats[i];
+                    prevX = targetMeasure.beatPositions[beats[i]];
+                }
+                if (beats[i] > beat && beats[i] <= nextBeat) {
+                    nextBeat = beats[i];
+                    nextX = targetMeasure.beatPositions[beats[i]];
+                    break;
+                }
+            }
+
+            if (nextBeat === prevBeat) {
+                x = prevX;
+            } else {
+                const ratio = (beat - prevBeat) / (nextBeat - prevBeat);
+                x = prevX + ratio * (nextX - prevX);
+            }
+        } else {
+            const ratio = (beat - targetMeasure.startBeat) / (targetMeasure.endBeat - targetMeasure.startBeat);
+            x = targetMeasure.startX + MEASURE_PADDING_LEFT + ratio * (targetMeasure.endX - targetMeasure.startX - MEASURE_PADDING_LEFT - MEASURE_PADDING_RIGHT);
+        }
+
+        const yOffset = targetMeasure.lineIndex * this.layoutSystemHeight;
+        let yStart = this.state.displayMode === 'tabs' ? yOffset + this.layoutTabYOffset + 10 : yOffset + 30;
+        let yEnd = this.state.displayMode === 'staff' ? yOffset + 110 : yOffset + (this.state.displayMode === 'both' ? this.layoutSystemHeight - 30 : this.layoutTabYOffset + 90);
+
+        playhead.setAttribute('display', 'block');
+        playhead.setAttribute('x1', x);
+        playhead.setAttribute('x2', x);
+        playhead.setAttribute('y1', yStart);
+        playhead.setAttribute('y2', yEnd);
+
+        // Auto-scroll to keep the playhead in view
+        const wrapper = this.shadowRoot.querySelector('.score-wrapper');
+        const svg = this.shadowRoot.querySelector('svg');
+        if (wrapper && svg) {
+            const scale = svg.clientWidth / 950; // The viewBox width is fixed at 950
+            const systemTopPx = yOffset * scale;
+            const systemBottomPx = (yOffset + this.layoutSystemHeight) * scale;
+
+            if (systemTopPx < wrapper.scrollTop || systemBottomPx > wrapper.scrollTop + wrapper.clientHeight) {
+                wrapper.scrollTo({ top: systemTopPx, behavior: 'smooth' });
+            }
+        }
+    }
+
     // Helper map to convert absolute MIDI numbers into standard string/fret combinations
     // Simple structural mapping for standard EADGBE guitar tuning
     midiToGuitar(midi) {
@@ -493,7 +571,14 @@ export class NotationViewer extends HTMLElement {
             });
         });
 
+        svgHtml += `<line id="playhead" x1="0" y1="0" x2="0" y2="0" stroke="rgba(239, 68, 68, 0.8)" stroke-width="3" display="none" style="pointer-events: none;" />`;
         svgHtml += `</svg>`;
+
+        // Cache layout bindings to safely interpolate playhead coordinates post-render
+        this.layoutMeasures = measures;
+        this.layoutSystemHeight = SYSTEM_HEIGHT;
+        this.layoutTabYOffset = tabYOffset;
+
         return svgHtml;
     }
 

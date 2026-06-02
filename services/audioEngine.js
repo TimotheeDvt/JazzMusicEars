@@ -200,12 +200,14 @@ class AudioEngine {
 
         // Calculate full length of chart to loop cleanly
         const lastChord = chords[chords.length - 1];
-        const totalDurationMs = lastChord ? (lastChord.beat + lastChord.duration) * this.secPerBeat * 1000 : 0;
+        const totalBeats = lastChord ? (lastChord.beat + lastChord.duration) : 0;
+        const totalDurationMs = totalBeats * this.secPerBeat * 1000;
 
         if (totalDurationMs > 0) {
             playIteration();
             this.chordIntervalId = setInterval(playIteration, totalDurationMs);
         }
+        return totalBeats;
     }
 
     stopChordsLoop() {

@@ -17,6 +17,7 @@ class AppController {
         this.displayMode = 'both';
         this.activePlayback = null;
         this.playbackTimeout = null;
+        this.playheadAnimationId = null;
 
         // Cache DOM Elements
         this.tuneTitle = document.getElementById('tune-title');
@@ -70,7 +71,9 @@ class AppController {
                     this.activePlayback = 'both';
                     this.playBothBtn.textContent = "Stop Both";
                     const duration = audioEngine.playBoth(this.currentTransposedTune.melody, this.currentTransposedTune.chords);
-                    this.playbackTimeout = setTimeout(() => this.resetPlaybackUI(), duration * 1000);
+                    const totalBeats = duration / audioEngine.secPerBeat;
+                    this.startPlayhead(totalBeats, false);
+                    this.playbackTimeout = setTimeout(() => this.stopPlayback(), duration * 1000);
                 }
             }
         });
@@ -84,7 +87,9 @@ class AppController {
                     this.activePlayback = 'melody';
                     this.playMelodyBtn.textContent = "Stop Melody";
                     const duration = audioEngine.playMelody(this.currentTransposedTune.melody);
-                    this.playbackTimeout = setTimeout(() => this.resetPlaybackUI(), duration * 1000);
+                    const totalBeats = duration / audioEngine.secPerBeat;
+                    this.startPlayhead(totalBeats, false);
+                    this.playbackTimeout = setTimeout(() => this.stopPlayback(), duration * 1000);
                 }
             }
         });
@@ -92,13 +97,17 @@ class AppController {
         this.toggleChordsBtn.addEventListener('click', () => {
             if (!this.currentTransposedTune) return;
 
-            if (audioEngine.isPlayingChords) {
+            if (this.activePlayback === 'chords') {
                 this.stopPlayback();
             } else {
                 this.stopPlayback();
-                audioEngine.startChordsLoop(this.currentTransposedTune.chords);
-                this.toggleChordsBtn.textContent = "Loop Chords: ON 🔄";
-                this.toggleChordsBtn.classList.add('primary');
+                const totalBeats = audioEngine.startChordsLoop(this.currentTransposedTune.chords);
+                if (totalBeats > 0) {
+                    this.activePlayback = 'chords';
+                    this.toggleChordsBtn.textContent = "Stop Chords 🔄";
+                    this.toggleChordsBtn.classList.add('primary');
+                    this.startPlayhead(totalBeats, true);
+                }
             }
         });
 
@@ -132,6 +141,7 @@ class AppController {
         this.nextTuneBtn.addEventListener('click', () => this.loadNextTune());
 
         this.tempoInput.addEventListener('change', (e) => {
+            this.stopPlayback();
             audioEngine.tempo = parseInt(e.target.value) || 120;
         });
 
@@ -257,15 +267,35 @@ class AppController {
     stopPlayback() {
         audioEngine.stopAll();
         clearTimeout(this.playbackTimeout);
-        this.resetPlaybackUI();
+        cancelAnimationFrame(this.playheadAnimationId);
+        if (this.notationDisplay && typeof this.notationDisplay.setPlayhead === 'function') {
+            this.notationDisplay.setPlayhead(null);
+        }
+        this.activePlayback = null;
+        this.playBothBtn.textContent = "Play Both";
+        this.playMelodyBtn.textContent = "Play Melody";
         this.toggleChordsBtn.textContent = "Loop Chords: OFF";
         this.toggleChordsBtn.classList.remove('primary');
     }
 
-    resetPlaybackUI() {
-        this.playBothBtn.textContent = "Play Both";
-        this.playMelodyBtn.textContent = "Play Melody";
-        this.activePlayback = null;
+    startPlayhead(totalBeats, isLoop = false) {
+        const startTime = audioEngine.ctx.currentTime;
+        const animate = () => {
+            if (!this.activePlayback) return;
+            
+            const elapsed = audioEngine.ctx.currentTime - startTime;
+            let currentBeat = elapsed / audioEngine.secPerBeat;
+
+            if (isLoop && totalBeats > 0) currentBeat = currentBeat % totalBeats;
+            else if (currentBeat > totalBeats) currentBeat = totalBeats;
+
+            if (this.notationDisplay) this.notationDisplay.setPlayhead(currentBeat);
+
+            if (isLoop || currentBeat < totalBeats) {
+                this.playheadAnimationId = requestAnimationFrame(animate);
+            }
+        };
+        this.playheadAnimationId = requestAnimationFrame(animate);
     }
 
     async loadNextTune() {
