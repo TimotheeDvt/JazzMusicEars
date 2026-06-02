@@ -14,7 +14,8 @@ export class NotationViewer extends HTMLElement {
             revealMelody: 'empty', // 'empty' | 'first' | 'full'
             revealChords: false,
             timeSignature: [4, 4],
-            anacrouse: 0
+            anacrouse: 0,
+            displayMode: 'both'
         };
     }
 
@@ -26,8 +27,8 @@ export class NotationViewer extends HTMLElement {
         this.render();
     }
 
-    updateData(title, key, melody, chords, revealMelody = 'empty', revealChords = false, timeSignature = [4, 4], anacrouse = 0) {
-        this.state = { title, key, melody, chords, revealMelody, revealChords, timeSignature, anacrouse };
+    updateData(title, key, melody, chords, revealMelody = 'empty', revealChords = false, timeSignature = [4, 4], anacrouse = 0, displayMode = 'both') {
+        this.state = { title, key, melody, chords, revealMelody, revealChords, timeSignature, anacrouse, displayMode };
         this.render();
     }
 
@@ -120,7 +121,7 @@ export class NotationViewer extends HTMLElement {
     }
 
     generateSVG() {
-        const { melody, chords, revealMelody, revealChords, key, timeSignature, anacrouse } = this.state;
+        const { melody, chords, revealMelody, revealChords, key, timeSignature, anacrouse, displayMode } = this.state;
 
         let visibleNotes = [];
         let visibleChords = [];
@@ -139,14 +140,25 @@ export class NotationViewer extends HTMLElement {
         const tsDen = Array.isArray(timeSignature) ? timeSignature[1] : 4;
         const barDuration = tsNum * (4 / tsDen);
 
+        const drawStaff = displayMode !== 'tabs';
+        const drawTabs = displayMode !== 'staff';
+        const SYSTEM_HEIGHT = displayMode === 'both' ? 260 : 150;
+        const tabYOffset = displayMode === 'both' ? 150 : 50;
+
+        const barLineStartY = 50;
+        let barLineEndY = 210;
+        if (displayMode === 'staff') barLineEndY = 90;
+        if (displayMode === 'tabs') barLineEndY = 110;
+
         const keySig = this.getKeySignature(key);
         let kx = 55;
-        keySig.forEach(() => kx += 12);
+        if (drawStaff) {
+            keySig.forEach(() => kx += 12);
+        }
 
-        const line0StartX = Math.max(70, kx + 15) + 30; // Accommodate time signature space
-        const lineNStartX = kx + 20;
+        const line0StartX = drawStaff ? Math.max(70, kx + 15) + 30 : 100;
+        const lineNStartX = drawStaff ? kx + 20 : 50;
 
-        const SYSTEM_HEIGHT = 260;
         const WIDTH = 950;
 
         // Calculate maximum required beats to determine total measures needed
@@ -267,37 +279,47 @@ export class NotationViewer extends HTMLElement {
             const yOffset = lineIndex * SYSTEM_HEIGHT;
 
             // Draw Standard Notation Staff
-            for (let i = 0; i < 5; i++) {
-                const y = yOffset + 50 + (i * 10);
-                svgHtml += `<line x1="20" y1="${y}" x2="${WIDTH - 20}" y2="${y}" class="staff-line"/>`;
+            if (drawStaff) {
+                for (let i = 0; i < 5; i++) {
+                    const y = yOffset + 50 + (i * 10);
+                    svgHtml += `<line x1="20" y1="${y}" x2="${WIDTH - 20}" y2="${y}" class="staff-line"/>`;
+                }
+                svgHtml += `<text x="30" y="${yOffset + 83}" class="clef-text">𝄞</text>`;
             }
-            svgHtml += `<text x="30" y="${yOffset + 83}" class="clef-text">𝄞</text>`;
 
             // Draw Guitar Tab Staff
-            for (let i = 0; i < 6; i++) {
-                const y = yOffset + 150 + (i * 12);
-                svgHtml += `<line x1="20" y1="${y}" x2="${WIDTH - 20}" y2="${y}" class="staff-line"/>`;
+            if (drawTabs) {
+                for (let i = 0; i < 6; i++) {
+                    const y = yOffset + tabYOffset + (i * 12);
+                    svgHtml += `<line x1="20" y1="${y}" x2="${WIDTH - 20}" y2="${y}" class="staff-line"/>`;
+                }
+                svgHtml += `<text x="30" y="${yOffset + tabYOffset + 22}" class="tab-text">T</text>`;
+                svgHtml += `<text x="30" y="${yOffset + tabYOffset + 40}" class="tab-text">A</text>`;
+                svgHtml += `<text x="30" y="${yOffset + tabYOffset + 58}" class="tab-text">B</text>`;
             }
-            svgHtml += `<text x="30" y="${yOffset + 172}" class="tab-text">T</text>`;
-            svgHtml += `<text x="30" y="${yOffset + 190}" class="tab-text">A</text>`;
-            svgHtml += `<text x="30" y="${yOffset + 208}" class="tab-text">B</text>`;
 
             // Draw Boundary Barlines
-            svgHtml += `<line x1="20" y1="${yOffset + 50}" x2="20" y2="${yOffset + 210}" class="bar-line"/>`;
-            svgHtml += `<line x1="${WIDTH - 20}" y1="${yOffset + 50}" x2="${WIDTH - 20}" y2="${yOffset + 210}" class="bar-line"/>`;
+            svgHtml += `<line x1="20" y1="${yOffset + barLineStartY}" x2="20" y2="${yOffset + barLineEndY}" class="bar-line"/>`;
+            svgHtml += `<line x1="${WIDTH - 20}" y1="${yOffset + barLineStartY}" x2="${WIDTH - 20}" y2="${yOffset + barLineEndY}" class="bar-line"/>`;
 
-            // Draw Key Signature
-            let kxLocal = 55;
-            keySig.forEach(acc => {
-                svgHtml += `<text x="${kxLocal}" y="${yOffset + acc.y + 6}" class="accidental-text">${acc.symbol}</text>`;
-                kxLocal += 12;
-            });
+            if (drawStaff) {
+                // Draw Key Signature
+                let kxLocal = 55;
+                keySig.forEach(acc => {
+                    svgHtml += `<text x="${kxLocal}" y="${yOffset + acc.y + 6}" class="accidental-text">${acc.symbol}</text>`;
+                    kxLocal += 12;
+                });
 
-            // Draw Time Signature (First line only)
-            if (lineIndex === 0) {
-                let tsX = Math.max(70, kxLocal + 15);
-                svgHtml += `<text x="${tsX}" y="${yOffset + 68}" class="time-sig-text">${tsNum}</text>`;
-                svgHtml += `<text x="${tsX}" y="${yOffset + 88}" class="time-sig-text">${tsDen}</text>`;
+                // Draw Time Signature (First line only)
+                if (lineIndex === 0) {
+                    let tsX = Math.max(70, kxLocal + 15);
+                    svgHtml += `<text x="${tsX}" y="${yOffset + 68}" class="time-sig-text">${tsNum}</text>`;
+                    svgHtml += `<text x="${tsX}" y="${yOffset + 88}" class="time-sig-text">${tsDen}</text>`;
+                }
+            } else if (drawTabs && lineIndex === 0) {
+                let tsX = 65;
+                svgHtml += `<text x="${tsX}" y="${yOffset + tabYOffset + 28}" class="time-sig-text">${tsNum}</text>`;
+                svgHtml += `<text x="${tsX}" y="${yOffset + tabYOffset + 48}" class="time-sig-text">${tsDen}</text>`;
             }
         }
 
@@ -308,7 +330,7 @@ export class NotationViewer extends HTMLElement {
             if (currentMeasure.lineIndex === nextMeasure.lineIndex) {
                 const x = nextMeasure.startX;
                 const yOffset = currentMeasure.lineIndex * SYSTEM_HEIGHT;
-                svgHtml += `<line x1="${x}" y1="${yOffset + 50}" x2="${x}" y2="${yOffset + 210}" class="bar-line"/>`;
+                svgHtml += `<line x1="${x}" y1="${yOffset + barLineStartY}" x2="${x}" y2="${yOffset + barLineEndY}" class="bar-line"/>`;
             }
         }
 
@@ -334,7 +356,7 @@ export class NotationViewer extends HTMLElement {
             const noteStartPos = getPos(note.beat);
 
             // Draw Accidental (Once per actual note)
-            if (staffInfo.accidental) {
+            if (drawStaff && staffInfo.accidental) {
                 const accSymbol = staffInfo.accidental === 'n' ? '♮' : (staffInfo.accidental === 'b' ? '♭' : '♯');
                 svgHtml += `<text x="${noteStartPos.x - 20}" y="${noteStartPos.yOffset + staffInfo.y + 6}" class="accidental-text">${accSymbol}</text>`;
             }
@@ -343,71 +365,105 @@ export class NotationViewer extends HTMLElement {
             note.comps.forEach((comp, idx) => {
                 const pos = getPos(comp.beat);
                 const staffY = pos.yOffset + staffInfo.y;
-                const tabY = pos.yOffset + 150 + ((guitar.stringNum - 1) * 12);
+                const tabY = pos.yOffset + tabYOffset + ((guitar.stringNum - 1) * 12);
 
                 // Draw Ledger Lines for each component
-                if (staffInfo.y >= 100) {
-                    for (let ly = 100; ly <= staffInfo.y; ly += 10) {
-                        svgHtml += `<line x1="${pos.x - 12}" y1="${pos.yOffset + ly}" x2="${pos.x + 12}" y2="${pos.yOffset + ly}" stroke="#0f172a" stroke-width="2"/>`;
-                    }
-                } else if (staffInfo.y <= 40) {
-                    for (let ly = 40; ly >= staffInfo.y; ly -= 10) {
-                        svgHtml += `<line x1="${pos.x - 12}" y1="${pos.yOffset + ly}" x2="${pos.x + 12}" y2="${pos.yOffset + ly}" stroke="#0f172a" stroke-width="2"/>`;
+                if (drawStaff) {
+                    if (staffInfo.y >= 100) {
+                        for (let ly = 100; ly <= staffInfo.y; ly += 10) {
+                            svgHtml += `<line x1="${pos.x - 12}" y1="${pos.yOffset + ly}" x2="${pos.x + 12}" y2="${pos.yOffset + ly}" stroke="#0f172a" stroke-width="2"/>`;
+                        }
+                    } else if (staffInfo.y <= 40) {
+                        for (let ly = 40; ly >= staffInfo.y; ly -= 10) {
+                            svgHtml += `<line x1="${pos.x - 12}" y1="${pos.yOffset + ly}" x2="${pos.x + 12}" y2="${pos.yOffset + ly}" stroke="#0f172a" stroke-width="2"/>`;
+                        }
                     }
                 }
 
                 // Handle Tie curves natively across structural breaks
                 const isTiedToPrev = (idx === 0 && note.tied) || (idx > 0);
                 if (isTiedToPrev && globalLastNoteX !== null) {
-                    if (globalLastLineIdx === pos.lineIndex) {
-                        const tieDir = staffInfo.y <= 70 ? -1 : 1;
-                        const midX = (globalLastNoteX + pos.x) / 2;
-                        svgHtml += `<path d="M${globalLastNoteX + 5} ${globalLastNoteY + tieDir * 8} Q${midX} ${globalLastNoteY + tieDir * 14} ${pos.x - 5} ${staffY + tieDir * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
-                    } else {
-                        // Cross-system broken ties
-                        const tieDir1 = (globalLastNoteY - (globalLastLineIdx * SYSTEM_HEIGHT)) <= 70 ? -1 : 1;
-                        svgHtml += `<path d="M${globalLastNoteX + 5} ${globalLastNoteY + tieDir1 * 8} Q${globalLastNoteX + 20} ${globalLastNoteY + tieDir1 * 14} ${globalLastNoteX + 35} ${globalLastNoteY + tieDir1 * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
-
-                        const tieDir2 = staffInfo.y <= 70 ? -1 : 1;
-                        svgHtml += `<path d="M${pos.x - 35} ${staffY + tieDir2 * 8} Q${pos.x - 20} ${staffY + tieDir2 * 14} ${pos.x - 5} ${staffY + tieDir2 * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
-                    }
-                }
-
-                // Draw Standard Notation Note Head (Hollow for Half/Whole notes)
-                if (comp.dur >= 2) {
-                    svgHtml += `<circle cx="${pos.x}" cy="${staffY}" r="5.5" fill="#fff" stroke="#0f172a" stroke-width="2"/>`;
-                } else {
-                    svgHtml += `<circle cx="${pos.x}" cy="${staffY}" r="5.5" class="note-head"/>`;
-                }
-
-                // Draw Stem direction based on staff position
-                if (comp.dur < 4) {
-                    const stemDown = staffInfo.y <= 70;
-                    const stemX = stemDown ? pos.x - 5 : pos.x + 5;
-                    const stemY2 = stemDown ? staffY + 30 : staffY - 30;
-                    svgHtml += `<line x1="${stemX}" y1="${staffY}" x2="${stemX}" y2="${stemY2}" stroke="#0f172a" stroke-width="1.5"/>`;
-
-                    // Draw Flag for Eighth note (0.5)
-                    if (comp.dur === 0.5) {
-                        if (stemDown) {
-                            svgHtml += `<path d="M${stemX} ${stemY2} Q${stemX + 10} ${stemY2 - 5} ${stemX + 12} ${stemY2 - 20} Q${stemX + 6} ${stemY2 - 10} ${stemX} ${stemY2 - 10}" fill="#0f172a"/>`;
+                    if (drawStaff) {
+                        if (globalLastLineIdx === pos.lineIndex) {
+                            const tieDir = staffInfo.y <= 70 ? -1 : 1;
+                            const midX = (globalLastNoteX + pos.x) / 2;
+                            svgHtml += `<path d="M${globalLastNoteX + 5} ${globalLastNoteY + tieDir * 8} Q${midX} ${globalLastNoteY + tieDir * 14} ${pos.x - 5} ${staffY + tieDir * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
                         } else {
-                            svgHtml += `<path d="M${stemX} ${stemY2} Q${stemX + 10} ${stemY2 + 5} ${stemX + 12} ${stemY2 + 20} Q${stemX + 6} ${stemY2 + 10} ${stemX} ${stemY2 + 10}" fill="#0f172a"/>`;
+                            // Cross-system broken ties
+                            const tieDir1 = (globalLastNoteY - (globalLastLineIdx * SYSTEM_HEIGHT)) <= 70 ? -1 : 1;
+                            svgHtml += `<path d="M${globalLastNoteX + 5} ${globalLastNoteY + tieDir1 * 8} Q${globalLastNoteX + 20} ${globalLastNoteY + tieDir1 * 14} ${globalLastNoteX + 35} ${globalLastNoteY + tieDir1 * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+
+                            const tieDir2 = staffInfo.y <= 70 ? -1 : 1;
+                            svgHtml += `<path d="M${pos.x - 35} ${staffY + tieDir2 * 8} Q${pos.x - 20} ${staffY + tieDir2 * 14} ${pos.x - 5} ${staffY + tieDir2 * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                        }
+                    } else {
+                        const tieY = pos.yOffset + tabYOffset + 68;
+                        if (globalLastLineIdx === pos.lineIndex) {
+                            const midX = (globalLastNoteX + pos.x) / 2;
+                            svgHtml += `<path d="M${globalLastNoteX + 5} ${tieY} Q${midX} ${tieY + 10} ${pos.x - 5} ${tieY}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                        } else {
+                            const tieYPrev = (globalLastLineIdx * SYSTEM_HEIGHT) + tabYOffset + 68;
+                            svgHtml += `<path d="M${globalLastNoteX + 5} ${tieYPrev} Q${globalLastNoteX + 20} ${tieYPrev + 10} ${globalLastNoteX + 35} ${tieYPrev}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+
+                            svgHtml += `<path d="M${pos.x - 35} ${tieY} Q${pos.x - 20} ${tieY + 10} ${pos.x - 5} ${tieY}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
                         }
                     }
                 }
 
-                // Draw Dot for Dotted notes
-                if (comp.dur === 3 || comp.dur === 1.5) {
-                    svgHtml += `<circle cx="${pos.x + 10}" cy="${staffY}" r="2" class="note-head"/>`;
+                if (drawStaff) {
+                    // Draw Standard Notation Note Head (Hollow for Half/Whole notes)
+                    if (comp.dur >= 2) {
+                        svgHtml += `<circle cx="${pos.x}" cy="${staffY}" r="5.5" fill="#fff" stroke="#0f172a" stroke-width="2"/>`;
+                    } else {
+                        svgHtml += `<circle cx="${pos.x}" cy="${staffY}" r="5.5" class="note-head"/>`;
+                    }
+
+                    // Draw Stem direction based on staff position
+                    if (comp.dur < 4) {
+                        const stemDown = staffInfo.y <= 70;
+                        const stemX = stemDown ? pos.x - 5 : pos.x + 5;
+                        const stemY2 = stemDown ? staffY + 30 : staffY - 30;
+                        svgHtml += `<line x1="${stemX}" y1="${staffY}" x2="${stemX}" y2="${stemY2}" stroke="#0f172a" stroke-width="1.5"/>`;
+
+                        // Draw Flag for Eighth note (0.5)
+                        if (comp.dur === 0.5) {
+                            if (stemDown) {
+                                svgHtml += `<path d="M${stemX} ${stemY2} Q${stemX + 10} ${stemY2 - 5} ${stemX + 12} ${stemY2 - 20} Q${stemX + 6} ${stemY2 - 10} ${stemX} ${stemY2 - 10}" fill="#0f172a"/>`;
+                            } else {
+                                svgHtml += `<path d="M${stemX} ${stemY2} Q${stemX + 10} ${stemY2 + 5} ${stemX + 12} ${stemY2 + 20} Q${stemX + 6} ${stemY2 + 10} ${stemX} ${stemY2 + 10}" fill="#0f172a"/>`;
+                            }
+                        }
+                    }
+
+                    // Draw Dot for Dotted notes
+                    if (comp.dur === 3 || comp.dur === 1.5) {
+                        svgHtml += `<circle cx="${pos.x + 10}" cy="${staffY}" r="2" class="note-head"/>`;
+                    }
                 }
 
-                // Draw Guitar Tab Note Intersection Circle Overlay
-                svgHtml += `<circle cx="${pos.x}" cy="${tabY}" r="8" fill="#fff"/>`;
-                svgHtml += `<text x="${pos.x}" y="${tabY + 4}" class="note-text" fill="#000" style="fill: #000; font-size:12px;">${guitar.fret}</text>`;
+                if (drawTabs) {
+                    // Draw Guitar Tab Note Intersection Circle Overlay
+                    const fretText = isTiedToPrev ? `(${guitar.fret})` : guitar.fret;
+                    const bgRadius = isTiedToPrev ? 12 : 8;
+                    svgHtml += `<circle cx="${pos.x}" cy="${tabY}" r="${bgRadius}" fill="#fff"/>`;
+                    svgHtml += `<text x="${pos.x}" y="${tabY + 4}" class="note-text" fill="#000" style="fill: #000; font-size:12px;">${fretText}</text>`;
+
+                    if (!drawStaff && comp.dur < 4) {
+                        const stemY1 = tabY + 10;
+                        const stemY2 = stemY1 + 25;
+                        svgHtml += `<line x1="${pos.x}" y1="${stemY1}" x2="${pos.x}" y2="${stemY2}" stroke="#0f172a" stroke-width="1.5"/>`;
+
+                        if (comp.dur === 0.5) {
+                            svgHtml += `<path d="M${pos.x} ${stemY2} Q${pos.x + 10} ${stemY2 - 5} ${pos.x + 12} ${stemY2 - 20} Q${pos.x + 6} ${stemY2 - 10} ${pos.x} ${stemY2 - 10}" fill="#0f172a"/>`;
+                        }
+                    }
+                    if (!drawStaff && (comp.dur === 3 || comp.dur === 1.5)) {
+                        svgHtml += `<circle cx="${pos.x + 12}" cy="${tabY}" r="2" class="note-head"/>`;
+                    }
+                }
 
                 globalLastNoteX = pos.x;
-                globalLastNoteY = staffY;
+                globalLastNoteY = drawStaff ? staffY : tabY;
                 globalLastLineIdx = pos.lineIndex;
             });
         });

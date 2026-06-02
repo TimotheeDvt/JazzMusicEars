@@ -15,6 +15,11 @@
         <div id="setup-panel" class="panel">
             <label for="pool-size">Pool Size:</label>
             <input type="number" id="pool-size" min="1" value="10">
+            <select id="display-mode" class="display-mode-select">
+                <option value="both">Staff & Tabs</option>
+                <option value="staff">Staff Only</option>
+                <option value="tabs">Tabs Only</option>
+            </select>
             <button id="manage-tunes-btn" class="btn secondary">Select Tunes</button>
             <button id="export-btn" class="btn secondary">Export Data</button>
             <button id="import-btn" class="btn secondary">Import Data</button>
@@ -28,7 +33,10 @@
                 <span id="tune-title-link">
                     <div id="youtube-link-container" class="hidden">
                         <a id="youtube-link" href="#" target="_blank" title="Listen on YouTube">
-                            <svg viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+                            <svg viewBox="0 0 24 24">
+                                <path
+                                    d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" />
+                            </svg>
                         </a>
                     </div>
                     <h2 id="tune-title">Loading Tune...</h2>
@@ -52,7 +60,8 @@
                 <div class="control-group">
                     <button id="play-both-btn" class="btn primary">Play Both</button>
                     <button id="play-melody-btn" class="btn primary">Play Melody</button>
-                    <button style="display: none;" id="toggle-chords-btn" class="btn secondary">Loop Chords: OFF</button>
+                    <button style="display: none;" id="toggle-chords-btn" class="btn secondary">Loop Chords:
+                        OFF</button>
                 </div>
                 <div class="control-group">
                     <button id="reveal-first-btn" class="btn hint">Reveal First Note</button>

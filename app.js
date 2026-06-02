@@ -15,6 +15,7 @@ class AppController {
         this.poolSize = 10;
         this.revealMelodyState = 'empty';
         this.revealChordsState = false;
+        this.displayMode = 'both';
 
         // Cache DOM Elements
         this.tuneTitle = document.getElementById('tune-title');
@@ -23,6 +24,7 @@ class AppController {
         this.keyUpBtn = document.getElementById('key-up-btn');
         this.notationDisplay = document.getElementById('notation-display');
         this.poolSizeInput = document.getElementById('pool-size');
+        this.displayModeSelect = document.getElementById('display-mode');
 
         // Buttons
         this.playBothBtn = document.getElementById('play-both-btn');
@@ -113,6 +115,11 @@ class AppController {
         // Pool Constraints UI updates
         this.poolSizeInput.addEventListener('change', (e) => {
             this.poolSize = parseInt(e.target.value) || 10;
+        });
+
+        this.displayModeSelect.addEventListener('change', (e) => {
+            this.displayMode = e.target.value;
+            this.updateDisplay();
         });
 
         // Modal triggers
@@ -278,7 +285,8 @@ class AppController {
             this.revealMelodyState,
             this.revealChordsState,
             this.currentTransposedTune.timeSignature,
-            this.currentTransposedTune.anacrouse
+            this.currentTransposedTune.anacrouse,
+            this.displayMode
         );
     }
 
