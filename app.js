@@ -113,17 +113,17 @@ class AppController {
         });
 
         this.revealFirstBtn.addEventListener('click', () => {
-            this.revealMelodyState = 'first';
+            this.revealMelodyState = this.revealMelodyState === 'first' ? 'empty' : 'first';
             this.updateDisplay();
         });
 
         this.revealMelodyBtn.addEventListener('click', () => {
-            this.revealMelodyState = 'full';
+            this.revealMelodyState = this.revealMelodyState === 'full' ? 'empty' : 'full';
             this.updateDisplay();
         });
 
         this.revealChordsBtn.addEventListener('click', () => {
-            this.revealChordsState = true;
+            this.revealChordsState = !this.revealChordsState;
             this.updateDisplay();
         });
 
@@ -363,8 +363,25 @@ class AppController {
         }
     }
 
+    updateButtonStates() {
+        if (this.revealMelodyState === 'first') {
+            this.revealFirstBtn.textContent = "Hide First";
+            this.revealMelodyBtn.textContent = "Reveal Melody";
+        } else if (this.revealMelodyState === 'full') {
+            this.revealFirstBtn.textContent = "Reveal First";
+            this.revealMelodyBtn.textContent = "Hide Melody";
+        } else {
+            this.revealFirstBtn.textContent = "Reveal First";
+            this.revealMelodyBtn.textContent = "Reveal Melody";
+        }
+
+        this.revealChordsBtn.textContent = this.revealChordsState ? "Hide Chords" : "Reveal Chords";
+    }
+
     updateDisplay() {
         if (!this.currentTransposedTune) return;
+
+        this.updateButtonStates();
 
         this.notationDisplay.updateData(
             this.currentTransposedTune.title,
