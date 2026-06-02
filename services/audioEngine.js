@@ -7,6 +7,7 @@ class AudioEngine {
         this.chordIntervalId = null;
         this.isPlayingChords = false;
         this.tempo = 120;
+        this.clickEnabled = false;
         this.activeNodes = new Set();
     }
 
@@ -23,6 +24,28 @@ class AudioEngine {
 
     get secPerBeat() {
         return 60 / this.tempo;
+    }
+
+    playClick(startTime) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(1000, startTime);
+        osc.frequency.exponentialRampToValueAtTime(100, startTime + 0.05);
+
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(0.5, startTime + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.05);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.onended = () => this.activeNodes.delete(osc);
+        this.activeNodes.add(osc);
+
+        osc.start(startTime);
+        osc.stop(startTime + 0.05);
     }
 
     playTone(midi, startTime, duration, type = "piano", volume = 0.3) {
@@ -126,6 +149,12 @@ class AudioEngine {
             maxBeat = Math.max(maxBeat, note.beat + note.duration);
         });
 
+        if (this.clickEnabled) {
+            for (let b = 0; b < Math.ceil(maxBeat); b++) {
+                this.playClick(startNow + (b * this.secPerBeat));
+            }
+        }
+
         return maxBeat * this.secPerBeat;
     }
 
@@ -163,6 +192,12 @@ class AudioEngine {
             maxBeat = Math.max(maxBeat, chord.beat + chord.duration);
         });
 
+        if (this.clickEnabled) {
+            for (let b = 0; b < Math.ceil(maxBeat); b++) {
+                this.playClick(startNow + (b * this.secPerBeat));
+            }
+        }
+
         return maxBeat * this.secPerBeat;
     }
 
@@ -184,6 +219,11 @@ class AudioEngine {
         if (this.isPlayingChords) this.stopChordsLoop();
         this.isPlayingChords = true;
 
+        // Calculate full length of chart to loop cleanly
+        const lastChord = chords[chords.length - 1];
+        const totalBeats = lastChord ? (lastChord.beat + lastChord.duration) : 0;
+        const totalDurationMs = totalBeats * this.secPerBeat * 1000;
+
         const playIteration = () => {
             let startNow = this.ctx.currentTime;
             chords.forEach(chord => {
@@ -196,12 +236,13 @@ class AudioEngine {
                     this.playTone(pitch, startTime, seconds, "piano", 0.15); // Chord Voicings
                 });
             });
-        };
 
-        // Calculate full length of chart to loop cleanly
-        const lastChord = chords[chords.length - 1];
-        const totalBeats = lastChord ? (lastChord.beat + lastChord.duration) : 0;
-        const totalDurationMs = totalBeats * this.secPerBeat * 1000;
+            if (this.clickEnabled) {
+                for (let b = 0; b < Math.ceil(totalBeats); b++) {
+                    this.playClick(startNow + (b * this.secPerBeat));
+                }
+            }
+        };
 
         if (totalDurationMs > 0) {
             playIteration();
@@ -220,7 +261,7 @@ class AudioEngine {
 
     stopAll() {
         this.activeNodes.forEach(node => {
-            try { node.stop(); } catch (e) {}
+            try { node.stop(); } catch (e) { }
         });
         this.activeNodes.clear();
         this.stopChordsLoop();

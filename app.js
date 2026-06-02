@@ -26,6 +26,7 @@ class AppController {
         this.keyUpBtn = document.getElementById('key-up-btn');
         this.notationDisplay = document.getElementById('notation-display');
         this.tempoInput = document.getElementById('tempo');
+        this.clickTrackCheckbox = document.getElementById('click-track');
         this.displayModeSelect = document.getElementById('display-mode');
         this.keyResetBtn = document.getElementById('key-reset-btn');
 
@@ -55,6 +56,7 @@ class AppController {
         this.fileInput = document.getElementById('import-file');
 
         audioEngine.tempo = parseInt(this.tempoInput.value) || 120;
+        audioEngine.clickEnabled = this.clickTrackCheckbox.checked;
 
         this.initEventListeners();
         this.initModalList();
@@ -143,6 +145,10 @@ class AppController {
         this.tempoInput.addEventListener('change', (e) => {
             this.stopPlayback();
             audioEngine.tempo = parseInt(e.target.value) || 120;
+        });
+
+        this.clickTrackCheckbox.addEventListener('change', (e) => {
+            audioEngine.clickEnabled = e.target.checked;
         });
 
         this.displayModeSelect.addEventListener('change', (e) => {
