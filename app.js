@@ -40,6 +40,22 @@ class AppController {
         this.ytContainer = document.getElementById('youtube-link-container');
         this.ytLink = document.getElementById('youtube-link');
 
+        // Create Export/Import UI dynamically
+        this.exportBtn = document.createElement('button');
+        this.exportBtn.textContent = 'Export Data';
+        this.importBtn = document.createElement('button');
+        this.importBtn.textContent = 'Import Data';
+        this.fileInput = document.createElement('input');
+        this.fileInput.type = 'file';
+        this.fileInput.accept = '.json';
+        this.fileInput.style.display = 'none';
+
+        if (this.manageTunesBtn && this.manageTunesBtn.parentNode) {
+            this.manageTunesBtn.parentNode.insertBefore(this.exportBtn, this.manageTunesBtn.nextSibling);
+            this.manageTunesBtn.parentNode.insertBefore(this.importBtn, this.exportBtn.nextSibling);
+            this.manageTunesBtn.parentNode.insertBefore(this.fileInput, this.importBtn.nextSibling);
+        }
+
         this.initEventListeners();
         this.initModalList();
         this.loadNextTune();
@@ -106,6 +122,11 @@ class AppController {
             this.updateSelectedTunesFromModal();
             this.tuneModal.classList.add('hidden');
         });
+
+        // Export/Import triggers
+        this.exportBtn.addEventListener('click', () => this.exportConfidenceData());
+        this.importBtn.addEventListener('click', () => this.fileInput.click());
+        this.fileInput.addEventListener('change', (e) => this.importConfidenceData(e));
     }
 
     initModalList() {
@@ -208,6 +229,47 @@ class AppController {
             this.revealMelodyState,
             this.revealChordsState
         );
+    }
+
+    exportConfidenceData() {
+        const data = localStorage.getItem('jazz_confidence_v1');
+        if (!data) {
+            alert("No confidence data found to export.");
+            return;
+        }
+
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'jazz_confidence_backup.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    importConfidenceData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (typeof data === 'object') {
+                    localStorage.setItem('jazz_confidence_v1', JSON.stringify(data));
+                    alert("Confidence data successfully imported! Reloading...");
+                    location.reload();
+                } else {
+                    alert("Invalid file format. Please upload a valid JSON backup.");
+                }
+            } catch (error) {
+                alert("Error parsing the file. Please ensure it is valid JSON.");
+            }
+            event.target.value = ''; // Reset input
+        };
+        reader.readAsText(file);
     }
 }
 
