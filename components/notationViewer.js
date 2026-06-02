@@ -181,7 +181,7 @@ export class NotationViewer extends HTMLElement {
             svgHtml += `<text x="${kx}" y="${acc.y + 6}" class="accidental-text">${acc.symbol}</text>`;
             kx += 12;
         });
-        
+
         // --- DRAW TIME SIGNATURE ---
         let tsX = Math.max(70, kx + 15);
         const tsNum = Array.isArray(timeSignature) ? timeSignature[0] : 4;
@@ -192,17 +192,16 @@ export class NotationViewer extends HTMLElement {
         const startX = tsX + 30;
 
         // --- RENDER REVEALED CHORDS ---
-        let chordX = startX;
         const rootNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
         visibleChords.forEach((chord) => {
+            const chordX = startX + (chord.beat * 70); // 70px matches the default melody spacing step
             const name = rootNames[chord.root % 12] + chord.type;
             svgHtml += `<text x="${chordX}" y="30" class="chord-label">${name}</text>`;
-            chordX += 160;
         });
 
         // --- RENDER REVEALED MELODY NOTES ---
         let noteX = startX;
-        
+
         const barDuration = tsNum * (4 / tsDen);
         let currentBeat = anacrouse > 0 ? (barDuration - anacrouse) : 0;
 

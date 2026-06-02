@@ -42,13 +42,12 @@ class AudioEngine {
 
     playMelody(melody) {
         this.init();
-        let now = this.ctx.currentTime;
+        let startNow = this.ctx.currentTime;
         melody.forEach(note => {
             if (note === 'BAR' || note.type === 'BAR') return;
-            // Adjust time duration (assuming 1 unit = 0.5 seconds at ~120 BPM)
+            const startTime = startNow + (note.beat * 0.5);
             const seconds = note.duration * 0.5;
-            this.playTone(note.pitch, now, seconds, "triangle", 0.4);
-            now += seconds;
+            this.playTone(note.pitch, startTime, seconds, "triangle", 0.4);
         });
     }
 
@@ -71,24 +70,28 @@ class AudioEngine {
         this.isPlayingChords = true;
 
         const playIteration = () => {
-            let now = this.ctx.currentTime;
+            let startNow = this.ctx.currentTime;
             chords.forEach(chord => {
+                const startTime = startNow + (chord.beat * 0.5);
                 const seconds = chord.duration * 0.5;
                 const pitches = this.getChordPitches(chord.root, chord.type);
 
                 pitches.forEach(pitch => {
                     // Soft warmth via sawtooth filters or low sine/triangle blends
-                    this.playTone(pitch - 12, now, seconds, "sine", 0.15); // Add lower octave root
-                    this.playTone(pitch, now, seconds, "sine", 0.12);
+                    this.playTone(pitch - 12, startTime, seconds, "sine", 0.15); // Add lower octave root
+                    this.playTone(pitch, startTime, seconds, "sine", 0.12);
                 });
-                now += seconds;
             });
         };
 
         // Calculate full length of chart to loop cleanly
-        const totalDurationMs = chords.reduce((sum, c) => sum + (c.duration * 500), 0);
-        playIteration();
-        this.chordIntervalId = setInterval(playIteration, totalDurationMs);
+        const lastChord = chords[chords.length - 1];
+        const totalDurationMs = lastChord ? (lastChord.beat + lastChord.duration) * 500 : 0;
+        
+        if (totalDurationMs > 0) {
+            playIteration();
+            this.chordIntervalId = setInterval(playIteration, totalDurationMs);
+        }
     }
 
     stopChordsLoop() {

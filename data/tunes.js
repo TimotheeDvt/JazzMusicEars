@@ -23,6 +23,7 @@ export const KEYS = [
 export function parseMelodyString(melodyStr, keyName = "C") {
     const tokens = melodyStr.trim().split(/\s+/);
     const melody = [];
+    let currentBeat = 0;
 
     const getKeyAccidentals = (key) => {
         const normalizedKey = key.replace(/maj/i, '').replace(/min/i, 'm');
@@ -74,9 +75,17 @@ export function parseMelodyString(melodyStr, keyName = "C") {
         const [notePart, durPart] = token.split(':');
         if (!notePart || !durPart) continue;
 
+        const duration = parseFloat(durPart);
+
+        if (notePart.toUpperCase() === 'R') {
+            currentBeat += duration;
+            continue;
+        }
+
         const pitch = noteToMidi(notePart);
         if (pitch !== null) {
-            melody.push({ pitch, duration: parseFloat(durPart) });
+            melody.push({ pitch, duration: duration, beat: currentBeat });
+            currentBeat += duration;
         }
     }
     return melody;
@@ -87,17 +96,28 @@ export function parseMelodyString(melodyStr, keyName = "C") {
 export function parseChordsString(chordStr) {
     const tokens = chordStr.trim().split(/\s+/);
     const chords = [];
+    let currentBeat = 0;
 
     for (const token of tokens) {
         if (token === '|') continue;
         const [rootPart, typePart, durPart] = token.split(':');
         if (!rootPart || !typePart || !durPart) continue;
 
+        const duration = parseFloat(durPart);
+
+        if (rootPart.toUpperCase() === 'NC') {
+            currentBeat += duration;
+            continue;
+        }
+
         // Re-use melody parser logic to get the MIDI root note
         // If no octave is provided in the string (e.g. "C"), default it to 4
         const rootStrWithOctave = rootPart.match(/\d$/) ? rootPart : `${rootPart}4`;
         const parsed = parseMelodyString(`${rootStrWithOctave}:1`, "C"); // Force C to keep root absolute
-        if (parsed.length > 0) chords.push({ root: parsed[0].pitch, type: typePart, duration: parseFloat(durPart) });
+        if (parsed.length > 0) {
+            chords.push({ root: parsed[0].pitch, type: typePart, duration: duration, beat: currentBeat });
+            currentBeat += duration;
+        }
     }
     return chords;
 }
