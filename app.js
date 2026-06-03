@@ -240,7 +240,8 @@ class AppController {
             chords: transposedChords,
             timeSignature: tune.timeSignature || [4, 4],
             anacrouse: tune.anacrouse || 0,
-            originalTempo: tune.originalTempo || 120
+            originalTempo: tune.originalTempo || 120,
+            visualTranspose: tune.visualTranspose || 0
         };
     }
 
@@ -432,7 +433,8 @@ class AppController {
             this.revealChordsState,
             this.currentTransposedTune.timeSignature,
             this.currentTransposedTune.anacrouse,
-            this.displayMode
+            this.displayMode,
+            this.currentTransposedTune.visualTranspose
         );
     }
 

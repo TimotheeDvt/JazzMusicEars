@@ -15,7 +15,8 @@ export class NotationViewer extends HTMLElement {
             revealChords: false,
             timeSignature: [4, 4],
             anacrouse: 0,
-            displayMode: 'both'
+            displayMode: 'both',
+            visualTranspose: 0
         };
     }
 
@@ -27,8 +28,8 @@ export class NotationViewer extends HTMLElement {
         this.render();
     }
 
-    updateData(title, key, melody, chords, revealMelody = 'empty', revealChords = false, timeSignature = [4, 4], anacrouse = 0, displayMode = 'both') {
-        this.state = { title, key, melody, chords, revealMelody, revealChords, timeSignature, anacrouse, displayMode };
+    updateData(title, key, melody, chords, revealMelody = 'empty', revealChords = false, timeSignature = [4, 4], anacrouse = 0, displayMode = 'both', visualTranspose = 0) {
+        this.state = { title, key, melody, chords, revealMelody, revealChords, timeSignature, anacrouse, displayMode, visualTranspose };
         this.render();
     }
 
@@ -143,6 +144,25 @@ export class NotationViewer extends HTMLElement {
         return { stringNum: 1, fret: 0 }; // Fallback
     }
 
+    // Helper to transpose key string up or down by semitones
+    transposeKeyName(keyName, shift) {
+        if (!shift) return keyName;
+        const isMinor = keyName.toLowerCase().endsWith('m') || keyName.toLowerCase().endsWith('min');
+        let root = keyName.replace(/min|m/i, '');
+
+        const notes = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+        const rootToIdx = {
+            'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5,
+            'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
+        };
+
+        let idx = rootToIdx[root];
+        if (idx === undefined) return keyName;
+
+        let newIdx = ((idx + shift) % 12 + 12) % 12;
+        return notes[newIdx] + (isMinor ? 'm' : '');
+    }
+
     // Get standard key signature properties based on scale name
     getKeySignature(keyName) {
         const sharps = [50, 65, 45, 60, 75, 55, 70]; // F, C, G, D, A, E, B
@@ -150,10 +170,10 @@ export class NotationViewer extends HTMLElement {
 
         const keyMap = {
             "C": 0, "Am": 0, "G": 1, "Em": 1, "D": 2, "Bm": 2,
-            "A": 3, "F#m": 3, "E": 4, "C#m": 4, "B": 5, "G#m": 5,
-            "F#": 6, "F": -1, "Dm": -1, "A#": -2, "Gm": -2,
-            "D#": -3, "Cm": -3, "G#": -4, "Fm": -4, "C#": -5,
-            "A#m": -5, "D#m": -6
+            "A": 3, "F#m": 3, "E": 4, "C#m": 4, "B": 5, "G#m": 5, "F#": 6, "Gb": -6,
+            "F": -1, "Dm": -1, "Bb": -2, "A#": -2, "Gm": -2, "Eb": -3, "D#": -3, "Cm": -3,
+            "Ab": -4, "G#": -4, "Fm": -4, "Db": -5, "C#": -5, "Bbm": -5, "A#m": -5,
+            "Ebm": -6, "D#m": -6
         };
 
         let sig = keyMap[keyName] || 0;
@@ -171,7 +191,7 @@ export class NotationViewer extends HTMLElement {
     // Convert MIDI pitch to Staff Y position, including accidental tracking
     midiToStaffInfo(midi, keyName) {
         // Identify keys that favor flat notation
-        const flatKeys = ["F", "A#", "D#", "G#", "C#", "Dm", "Gm", "Cm", "Fm", "A#m", "D#m"];
+        const flatKeys = ["F", "A#", "Bb", "D#", "Eb", "G#", "Ab", "C#", "Db", "Gb", "Dm", "Gm", "Cm", "Fm", "A#m", "Bbm", "D#m", "Ebm"];
         const isFlat = flatKeys.some(k => keyName === k || keyName.startsWith(k + "m")) || (keyName && keyName.includes('b'));
 
         const flatMappings = [
@@ -192,9 +212,10 @@ export class NotationViewer extends HTMLElement {
         // Key Signature logic to suppress/add accidentals
         const keyMap = {
             "C": 0, "Am": 0, "G": 1, "Em": 1, "D": 2, "Bm": 2,
-            "A": 3, "F#m": 3, "E": 4, "C#m": 4, "B": 5, "G#m": 5, "F#": 6,
-            "F": -1, "Dm": -1, "A#": -2, "Gm": -2, "D#": -3, "Cm": -3,
-            "G#": -4, "Fm": -4, "C#": -5, "A#m": -5, "D#m": -6
+            "A": 3, "F#m": 3, "E": 4, "C#m": 4, "B": 5, "G#m": 5, "F#": 6, "Gb": -6,
+            "F": -1, "Dm": -1, "Bb": -2, "A#": -2, "Gm": -2, "Eb": -3, "D#": -3, "Cm": -3,
+            "Ab": -4, "G#": -4, "Fm": -4, "Db": -5, "C#": -5, "Bbm": -5, "A#m": -5,
+            "Ebm": -6, "D#m": -6
         };
         const sig = keyMap[keyName] || 0;
         const keyAccidentals = {};
@@ -219,7 +240,7 @@ export class NotationViewer extends HTMLElement {
     }
 
     generateSVG() {
-        const { melody, chords, revealMelody, revealChords, key, timeSignature, anacrouse, displayMode } = this.state;
+        const { melody, chords, revealMelody, revealChords, key, timeSignature, anacrouse, displayMode, visualTranspose } = this.state;
 
         let visibleNotes = [];
         let visibleChords = [];
@@ -248,7 +269,8 @@ export class NotationViewer extends HTMLElement {
         if (displayMode === 'staff') barLineEndY = 90;
         if (displayMode === 'tabs') barLineEndY = 110;
 
-        const keySig = this.getKeySignature(key);
+        const transposedKey = this.transposeKeyName(key, visualTranspose || 0);
+        const keySig = this.getKeySignature(transposedKey);
         let kx = 55;
         if (drawStaff) {
             keySig.forEach(() => kx += 12);
@@ -446,13 +468,21 @@ export class NotationViewer extends HTMLElement {
         }
 
         // --- RENDER REVEALED CHORDS ---
-        const rootNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+        const flatKeysForChords = ["F", "Bb", "Eb", "Ab", "Db", "Gb", "Dm", "Gm", "Cm", "Fm", "Bbm", "Ebm"];
+        const useFlats = flatKeysForChords.some(k => transposedKey === k || transposedKey.startsWith(k + "m")) || transposedKey.includes('b');
+        const sharpRoots = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+        const flatRoots = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+        const chordRoots = useFlats ? flatRoots : sharpRoots;
+
         visibleChords.forEach((chord) => {
             if (chord.isRepeat) return;
             const vBeat = chord.visualBeat !== undefined ? chord.visualBeat : chord.beat;
             if (vBeat === undefined) return;
             const pos = getPos(vBeat);
-            const name = rootNames[chord.root % 12] + chord.type;
+
+            let displayRoot = chord.root + (visualTranspose || 0);
+            displayRoot = ((displayRoot % 12) + 12) % 12;
+            const name = chordRoots[displayRoot] + chord.type;
             svgHtml += `<text x="${pos.x}" y="${pos.yOffset + 30}" class="chord-label">${name}</text>`;
         });
 
@@ -543,7 +573,8 @@ export class NotationViewer extends HTMLElement {
                 return;
             }
 
-            const staffInfo = this.midiToStaffInfo(note.pitch, key);
+            const staffPitch = note.pitch + (visualTranspose || 0);
+            const staffInfo = this.midiToStaffInfo(staffPitch, transposedKey);
             const guitar = this.midiToGuitar(note.pitch, note.stringNum);
             const noteStartPos = getPos(vBeat);
 
@@ -688,31 +719,31 @@ export class NotationViewer extends HTMLElement {
         if (svg) {
             svg.addEventListener('click', (e) => {
                 if (!this.layoutMeasures || this.layoutMeasures.length === 0) return;
-                
+
                 const pt = svg.createSVGPoint();
                 pt.x = e.clientX;
                 pt.y = e.clientY;
                 const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
-                
+
                 let lineIndex = Math.floor((svgP.y - this.layoutTitleHeight) / this.layoutSystemHeight);
                 if (lineIndex < 0) lineIndex = 0;
-                
+
                 const measuresInLine = this.layoutMeasures.filter(m => m.lineIndex === lineIndex);
                 if (measuresInLine.length === 0) {
                     const lastM = this.layoutMeasures[this.layoutMeasures.length - 1];
                     this.dispatchEvent(new CustomEvent('seek', { detail: { beat: lastM.startBeat } }));
                     return;
                 }
-                
+
                 let clickedMeasure = measuresInLine.find(m => svgP.x >= m.startX && svgP.x <= m.endX);
                 if (!clickedMeasure) {
                     if (svgP.x < measuresInLine[0].startX) clickedMeasure = measuresInLine[0];
                     else clickedMeasure = measuresInLine[measuresInLine.length - 1];
                 }
-                
+
                 let closestBeat = clickedMeasure.startBeat;
                 let minDist = Infinity;
-                
+
                 if (clickedMeasure.beats && clickedMeasure.beats.length > 0) {
                     clickedMeasure.beats.forEach(b => {
                         const bx = clickedMeasure.beatPositions[b];
@@ -723,7 +754,7 @@ export class NotationViewer extends HTMLElement {
                         }
                     });
                 }
-                
+
                 this.dispatchEvent(new CustomEvent('seek', { detail: { beat: closestBeat } }));
             });
         }

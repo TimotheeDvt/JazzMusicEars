@@ -6,6 +6,7 @@
  */
 export const jazzStandards = [
     "autumn-leaves",
+    "blue-bossa"
     // "tune-up",
     // "summertime"
 ];
