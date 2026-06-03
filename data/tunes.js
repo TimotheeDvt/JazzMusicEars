@@ -7,8 +7,6 @@
 export const jazzStandards = [
     "autumn-leaves",
     "blue-bossa"
-    // "tune-up",
-    // "summertime"
 ];
 
 // Helper variables for transpositions
