@@ -1049,7 +1049,7 @@ export class NotationViewer extends HTMLElement {
                     svg { margin: 0 auto; display: block; user-select: none; -webkit-user-select: none; }
                 </style>
                 <div class="zoom-controls">
-                    <label id="reset-zoom-btn" style="cursor: pointer;" title="Reset to 60%">🔍 Zoom</label>
+                    <label id="reset-zoom-btn" style="cursor: pointer;" title="Reset to 60%">Zoom</label>
                     <input type="range" id="zoom-slider" min="0.2" max="2.0" step="0.05" value="${this.state.zoom || 0.6}">
                     <span id="zoom-display">${Math.round((this.state.zoom || 0.6) * 100)}%</span>
                 </div>
