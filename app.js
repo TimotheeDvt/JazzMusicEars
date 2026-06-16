@@ -181,7 +181,7 @@ class AppController {
         this.tuneCheckboxList.innerHTML = '';
         for (const id of jazzStandards) {
             try {
-                const module = await import(`./data/${id}.js`);
+                const module = await import(`./data/tuneFiles/${id}.js`);
                 const tune = module.tune;
                 const label = document.createElement('label');
                 label.style.display = 'block';
@@ -366,7 +366,7 @@ class AppController {
         }
 
         try {
-            const module = await import(`./data/${targetTuneId}.js`);
+            const module = await import(`./data/tuneFiles/${targetTuneId}.js`);
             const targetTune = module.tune;
 
             this.currentOriginalTune = targetTune;

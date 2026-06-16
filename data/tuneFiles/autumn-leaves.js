@@ -1,4 +1,4 @@
-import { parseMelodyString, parseChordsString } from './tunes.js';
+import { parseMelodyString, parseChordsString } from '../tunes.js';
 
 const originalKey = "Em";
 
