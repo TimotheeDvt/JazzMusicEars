@@ -18,17 +18,14 @@
         <div id="setup-panel" class="panel">
             <label for="tempo">BPM:</label>
             <input type="number" id="tempo" min="40" max="300" value="120">
-            <label style="display:flex; align-items:center; gap:0.25rem; margin-right: 0.5rem; cursor:pointer;">
-                <input type="checkbox" id="click-track"> Click
-            </label>
             <select id="display-mode" class="display-mode-select">
                 <option value="both">Staff & Tabs</option>
                 <option value="staff">Staff Only</option>
                 <option value="tabs">Tabs Only</option>
             </select>
             <button id="manage-tunes-btn" class="btn secondary">Select Tunes</button>
-            <button id="export-btn" class="btn secondary">Export Data</button>
-            <button id="import-btn" class="btn secondary">Import Data</button>
+            <button id="export-btn" class="btn secondary" style="display: none;">Export Data</button>
+            <button id="import-btn" class="btn secondary" style="display: none;">Import Data</button>
             <input type="file" id="import-file" accept=".json" class="hidden">
         </div>
     </header>
@@ -87,7 +84,7 @@
             </section>
 
             <section id="evaluation-card" class="card hidden">
-                <div class="confidence-buttons">
+                <div class="confidence-buttons" style="display: none;">
                     <button class="btn conf-btn" data-level="1">1 - Lost</button>
                     <button class="btn conf-btn" data-level="2">2 - Hesitant</button>
                     <button class="btn conf-btn" data-level="3">3 - Comfortable</button>

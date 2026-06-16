@@ -55,7 +55,7 @@ class AppController {
         this.fileInput = document.getElementById('import-file');
 
         audioEngine.tempo = parseInt(this.tempoInput.value) || 120;
-        audioEngine.clickEnabled = this.clickTrackCheckbox.checked;
+        audioEngine.setClickEnabled(true);
 
         this.initEventListeners();
         this.initModalList();
@@ -144,10 +144,6 @@ class AppController {
         this.tempoInput.addEventListener('change', (e) => {
             this.stopPlayback();
             audioEngine.tempo = parseInt(e.target.value) || 120;
-        });
-
-        this.clickTrackCheckbox.addEventListener('change', (e) => {
-            audioEngine.clickEnabled = e.target.checked;
         });
 
         this.displayModeSelect.addEventListener('change', (e) => {
