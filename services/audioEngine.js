@@ -282,6 +282,8 @@ class AudioEngine {
             "m13": [0, 3, 7, 10, 14, 17],
             "13": [0, 4, 7, 10, 14, 17]
         };
+        if (!voicings[type])
+            alert("Unknown chord type: " + type)
         const intervals = voicings[type] || [0, 7]; // default to 5 chord
         return intervals.map(interval => root + interval);
     }
