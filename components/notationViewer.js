@@ -451,12 +451,10 @@ export class NotationViewer extends HTMLElement {
             // Draw Measure Number at the beginning of each line (Skip measure 0 pickups)
             const firstMeasureOnLine = measures.find(m => m.lineIndex === lineIndex);
             if (firstMeasureOnLine) {
-                let measureNum = anacrouse > 0 ? firstMeasureOnLine.index : firstMeasureOnLine.index + 1;
-                if (measureNum > 0) {
-                    const measureNumX = 8;
-                    const measureNumY = yOffset + (drawStaff ? 38 : tabYOffset - 5);
-                    svgHtml += `<text x="${measureNumX}" y="${measureNumY}" font-family="sans-serif" font-size="14" font-weight="bold" fill="#64748b">${measureNum}</text>`;
-                }
+                let measureNum = firstMeasureOnLine.index + 1;
+                const measureNumX = 8;
+                const measureNumY = yOffset + (drawStaff ? 38 : tabYOffset - 5);
+                svgHtml += `<text x="${measureNumX}" y="${measureNumY}" font-family="sans-serif" font-size="14" font-weight="bold" fill="#64748b">${measureNum}</text>`;
             }
 
             if (drawStaff) {
