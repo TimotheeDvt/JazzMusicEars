@@ -175,6 +175,11 @@ class AppController {
             const beat = e.detail.beat;
             this.seekAndPlay(beat);
         });
+
+        // Volume Controls
+        document.getElementById('melody-volume').addEventListener('input', (e) => audioEngine.setMelodyVolume(parseFloat(e.target.value)));
+        document.getElementById('chord-volume').addEventListener('input', (e) => audioEngine.setChordVolume(parseFloat(e.target.value)));
+        document.getElementById('click-volume').addEventListener('input', (e) => audioEngine.setClickVolume(parseFloat(e.target.value)));
     }
 
     async initModalList() {

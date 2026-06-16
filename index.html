@@ -65,6 +65,20 @@
                     <button style="display: none;" id="toggle-chords-btn" class="btn secondary">Loop Chords:
                         OFF</button>
                 </div>
+                <div style="display: grid; gap: 15px; align-items: center; margin-top: 5px; grid-template-areas: 'a b' 'c c';">
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <label for="melody-volume" style="grid-area: a; font-size: 12px; font-weight: bold;">Melody</label>
+                        <input type="range" id="melody-volume" min="0" max="1" step="0.05" value="1" style="cursor: pointer; width: 100px;">
+                    </div>
+                    <div style="grid-area: b; display: flex; flex-direction: column; gap: 5px;">
+                        <label for="chord-volume" style="font-size: 12px; font-weight: bold;">Chord</label>
+                        <input type="range" id="chord-volume" min="0" max="1" step="0.05" value="1" style="cursor: pointer; width: 100px;">
+                    </div>
+                    <div style="grid-area: c; display: flex; flex-direction: column; gap: 5px;">
+                        <label for="click-volume" style="font-size: 12px; font-weight: bold;">Click</label>
+                        <input type="range" id="click-volume" min="0" max="1" step="0.05" value="1" style="cursor: pointer;">
+                    </div>
+                </div>
                 <div class="control-group">
                     <button id="reveal-first-btn" class="btn hint">Reveal First Note</button>
                     <button id="reveal-melody-btn" class="btn hint">Reveal Full Melody</button>

@@ -9,11 +9,48 @@ class AudioEngine {
         this.tempo = 120;
         this.clickEnabled = false;
         this.activeNodes = new Set();
+        this.melodyVolume = 1.0;
+        this.chordVolume = 1.0;
+        this.clickVolume = 1.0;
     }
 
     init() {
         if (!this.ctx) {
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Create dedicated buses for mixing Melody and Chords independently
+            this.melodyGain = this.ctx.createGain();
+            this.chordGain = this.ctx.createGain();
+            this.clickGain = this.ctx.createGain();
+
+            this.melodyGain.connect(this.ctx.destination);
+            this.chordGain.connect(this.ctx.destination);
+            this.clickGain.connect(this.ctx.destination);
+
+            this.melodyGain.gain.value = this.melodyVolume;
+            this.chordGain.gain.value = this.chordVolume;
+            this.clickGain.gain.value = this.clickVolume;
+        }
+    }
+
+    setMelodyVolume(val) {
+        this.melodyVolume = val;
+        if (this.melodyGain && this.ctx) {
+            this.melodyGain.gain.setTargetAtTime(val, this.ctx.currentTime, 0.05); // Smooth slide transition
+        }
+    }
+
+    setChordVolume(val) {
+        this.chordVolume = val;
+        if (this.chordGain && this.ctx) {
+            this.chordGain.gain.setTargetAtTime(val, this.ctx.currentTime, 0.05); // Smooth slide transition
+        }
+    }
+
+    setClickVolume(val) {
+        this.clickVolume = val;
+        if (this.clickGain && this.ctx) {
+            this.clickGain.gain.setTargetAtTime(val, this.ctx.currentTime, 0.05); // Smooth slide transition
         }
     }
 
@@ -39,7 +76,7 @@ class AudioEngine {
         gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.05);
 
         osc.connect(gain);
-        gain.connect(this.ctx.destination);
+        gain.connect(this.clickGain);
 
         osc.onended = () => this.activeNodes.delete(osc);
         this.activeNodes.add(osc);
@@ -48,8 +85,9 @@ class AudioEngine {
         osc.stop(startTime + 0.05);
     }
 
-    playTone(midi, startTime, duration, type = "piano", volume = 0.3) {
+    playTone(midi, startTime, duration, type = "piano", volume = 0.3, outputNode = null) {
         this.init();
+        const dest = outputNode || this.ctx.destination;
 
         if (type === "piano") {
             const freq = this.midiToFreq(midi);
@@ -90,7 +128,7 @@ class AudioEngine {
             masterGain.gain.exponentialRampToValueAtTime(0.001, startTime + duration); // Release
 
             filter.connect(masterGain);
-            masterGain.connect(this.ctx.destination);
+            masterGain.connect(dest);
 
             osc1.onended = () => this.activeNodes.delete(osc1);
             osc2.onended = () => this.activeNodes.delete(osc2);
@@ -118,7 +156,7 @@ class AudioEngine {
         gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
 
         osc.connect(gainNode);
-        gainNode.connect(this.ctx.destination);
+        gainNode.connect(dest);
 
         osc.onended = () => this.activeNodes.delete(osc);
         this.activeNodes.add(osc);
@@ -152,7 +190,7 @@ class AudioEngine {
             }
             const startTime = startNow + (offsetBeat * this.secPerBeat);
             const seconds = duration * this.secPerBeat;
-            this.playTone(note.pitch, startTime, seconds, "piano", 0.5);
+            this.playTone(note.pitch, startTime, seconds, "piano", 0.5, this.melodyGain);
             maxBeat = Math.max(maxBeat, note.beat + note.duration);
         });
 
@@ -190,7 +228,7 @@ class AudioEngine {
             }
             const startTime = startNow + (offsetBeat * this.secPerBeat);
             const seconds = duration * this.secPerBeat;
-            this.playTone(note.pitch, startTime, seconds, "piano", 0.5);
+            this.playTone(note.pitch, startTime, seconds, "piano", 0.5, this.melodyGain);
             maxBeat = Math.max(maxBeat, note.beat + note.duration);
         });
 
@@ -206,9 +244,9 @@ class AudioEngine {
             const seconds = duration * this.secPerBeat;
             const pitches = this.getChordPitches(chord.root, chord.type);
 
-            this.playTone(chord.root - 12, startTime, seconds, "piano", 0.25); // Bass Root
+            this.playTone(chord.root - 12, startTime, seconds, "piano", 0.25, this.chordGain); // Bass Root
             pitches.forEach(pitch => {
-                this.playTone(pitch, startTime, seconds, "piano", 0.15); // Chord Voicings
+                this.playTone(pitch, startTime, seconds, "piano", 0.15, this.chordGain); // Chord Voicings
             });
             maxBeat = Math.max(maxBeat, chord.beat + chord.duration);
         });
@@ -271,9 +309,9 @@ class AudioEngine {
                 const seconds = duration * this.secPerBeat;
                 const pitches = this.getChordPitches(chord.root, chord.type);
 
-                this.playTone(chord.root - 12, startTime, seconds, "piano", 0.25); // Bass Root
+                this.playTone(chord.root - 12, startTime, seconds, "piano", 0.25, this.chordGain); // Bass Root
                 pitches.forEach(pitch => {
-                    this.playTone(pitch, startTime, seconds, "piano", 0.15); // Chord Voicings
+                    this.playTone(pitch, startTime, seconds, "piano", 0.15, this.chordGain); // Chord Voicings
                 });
             });
 
