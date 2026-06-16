@@ -19,6 +19,8 @@ class AppController {
         this.activePlayback = null;
         this.playbackTimeout = null;
         this.playheadAnimationId = null;
+        this.currentBeat = 0;
+        this.lastPlaybackMode = 'playing';
 
         // Cache DOM Elements
         this.tuneKey = document.getElementById('tune-key');
@@ -64,18 +66,11 @@ class AppController {
 
     initEventListeners() {
         this.playBtn.addEventListener('click', () => {
-            if (this.activePlayback === 'playing') {
-                this.stopPlayback();
+            if (this.activePlayback === 'playing' || this.activePlayback === 'chords') {
+                this.pausePlayback();
             } else {
-                this.stopPlayback();
-                if (this.currentTransposedTune) {
-                    this.activePlayback = 'playing';
-                    this.playBtn.textContent = "Stop";
-                    const duration = audioEngine.playBoth(this.currentTransposedTune.melody, this.currentTransposedTune.chords, 0);
-                    const totalBeats = duration / audioEngine.secPerBeat;
-                    this.startPlayhead(0, totalBeats, false);
-                    this.playbackTimeout = setTimeout(() => this.stopPlayback(), duration * 1000);
-                }
+                let startFrom = (this.activePlayback === 'paused') ? this.currentBeat : 0;
+                this.seekAndPlay(startFrom, this.lastPlaybackMode);
             }
         });
 
@@ -85,14 +80,7 @@ class AppController {
             if (this.activePlayback === 'chords') {
                 this.stopPlayback();
             } else {
-                this.stopPlayback();
-                const totalBeats = audioEngine.startChordsLoop(this.currentTransposedTune.chords, 0);
-                if (totalBeats > 0) {
-                    this.activePlayback = 'chords';
-                    this.toggleChordsBtn.textContent = "Stop Chords 🔄";
-                    this.toggleChordsBtn.classList.add('primary');
-                    this.startPlayhead(0, totalBeats, true);
-                }
+                this.seekAndPlay(0, 'chords');
             }
         });
 
@@ -126,7 +114,9 @@ class AppController {
         this.nextTuneBtn.addEventListener('click', () => this.loadNextTune());
 
         this.tempoInput.addEventListener('change', (e) => {
-            this.stopPlayback();
+            if (this.activePlayback === 'playing' || this.activePlayback === 'chords') {
+                this.pausePlayback();
+            }
             audioEngine.tempo = parseInt(e.target.value) || 120;
         });
 
@@ -153,7 +143,13 @@ class AppController {
 
         this.notationDisplay.addEventListener('seek', (e) => {
             const beat = e.detail.beat;
-            this.seekAndPlay(beat);
+            this.currentBeat = beat;
+            if (this.activePlayback === 'playing' || this.activePlayback === 'chords') {
+                this.seekAndPlay(beat, this.lastPlaybackMode);
+            } else {
+                this.activePlayback = 'paused';
+                this.notationDisplay.setPlayhead(beat);
+            }
         });
 
         // Volume Controls
@@ -277,6 +273,14 @@ class AppController {
         }
     }
 
+    pausePlayback() {
+        audioEngine.stopAll();
+        clearTimeout(this.playbackTimeout);
+        cancelAnimationFrame(this.playheadAnimationId);
+        this.activePlayback = 'paused';
+        this.playBtn.textContent = "Play";
+    }
+
     stopPlayback() {
         audioEngine.stopAll();
         clearTimeout(this.playbackTimeout);
@@ -285,31 +289,38 @@ class AppController {
             this.notationDisplay.setPlayhead(null);
         }
         this.activePlayback = null;
+        this.currentBeat = 0;
         this.playBtn.textContent = "Play";
         this.toggleChordsBtn.textContent = "Loop Chords: OFF";
         this.toggleChordsBtn.classList.remove('primary');
     }
 
-    seekAndPlay(startBeat) {
+    seekAndPlay(startBeat, mode = 'playing') {
         if (!this.currentTransposedTune) return;
 
-        const mode = this.activePlayback || 'playing'; // Default to playing if playback is fully stopped
+        audioEngine.stopAll();
+        clearTimeout(this.playbackTimeout);
+        cancelAnimationFrame(this.playheadAnimationId);
 
-        this.stopPlayback();
+        this.lastPlaybackMode = mode;
+        this.currentBeat = startBeat;
 
         if (mode === 'playing') {
             this.activePlayback = 'playing';
-            this.playBtn.textContent = "Stop";
+            this.playBtn.textContent = "Pause";
+            this.toggleChordsBtn.textContent = "Loop Chords: OFF";
+            this.toggleChordsBtn.classList.remove('primary');
             const duration = audioEngine.playBoth(this.currentTransposedTune.melody, this.currentTransposedTune.chords, startBeat);
             const totalBeats = (duration / audioEngine.secPerBeat) + startBeat;
             this.startPlayhead(startBeat, totalBeats, false);
             this.playbackTimeout = setTimeout(() => this.stopPlayback(), duration * 1000);
         } else if (mode === 'chords') {
+            this.activePlayback = 'chords';
+            this.playBtn.textContent = "Pause";
+            this.toggleChordsBtn.textContent = "Stop Chords 🔄";
+            this.toggleChordsBtn.classList.add('primary');
             const totalBeats = audioEngine.startChordsLoop(this.currentTransposedTune.chords, startBeat);
             if (totalBeats > 0) {
-                this.activePlayback = 'chords';
-                this.toggleChordsBtn.textContent = "Stop Chords 🔄";
-                this.toggleChordsBtn.classList.add('primary');
                 this.startPlayhead(startBeat, totalBeats, true);
             }
         }
@@ -318,7 +329,7 @@ class AppController {
     startPlayhead(startBeat, totalBeats, isLoop = false) {
         const startTime = audioEngine.ctx.currentTime;
         const animate = () => {
-            if (!this.activePlayback) return;
+            if (this.activePlayback !== 'playing' && this.activePlayback !== 'chords') return;
 
             const elapsed = audioEngine.ctx.currentTime - startTime;
             let currentBeat = startBeat + (elapsed / audioEngine.secPerBeat);
@@ -328,6 +339,8 @@ class AppController {
             } else if (currentBeat > totalBeats) {
                 currentBeat = totalBeats;
             }
+
+            this.currentBeat = currentBeat;
 
             if (this.notationDisplay) this.notationDisplay.setPlayhead(currentBeat);
 
