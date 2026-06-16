@@ -282,7 +282,7 @@ class AudioEngine {
             "m13": [0, 3, 7, 10, 14, 17],
             "13": [0, 4, 7, 10, 14, 17]
         };
-        const intervals = voicings[type] || [0, 4, 7];
+        const intervals = voicings[type] || [0, 7]; // default to 5 chord
         return intervals.map(interval => root + interval);
     }
 
