@@ -1073,6 +1073,22 @@ export class NotationViewer extends HTMLElement {
                 const svg = this.shadowRoot.querySelector('svg');
                 if (svg) svg.setAttribute('width', '100%');
             });
+
+            this.addEventListener('wheel', (e) => {
+                if (e.ctrlKey) {
+                    e.preventDefault();
+                    const zoomDelta = e.deltaY > 0 ? -0.1 : 0.1;
+                    let newZoom = (this.state.zoom || 1) + zoomDelta;
+                    newZoom = Math.max(0.2, Math.min(3.0, Math.round(newZoom * 100) / 100));
+                    if (newZoom !== this.state.zoom) {
+                        this.state.zoom = newZoom;
+                        slider.value = newZoom;
+                        display.textContent = Math.round(newZoom * 100) + '%';
+                        const svg = this.shadowRoot.querySelector('svg');
+                        if (svg) svg.setAttribute('width', `${newZoom * 100}%`);
+                    }
+                }
+            }, { passive: false });
         }
 
         const wrapper = this.shadowRoot.querySelector('.score-wrapper');
