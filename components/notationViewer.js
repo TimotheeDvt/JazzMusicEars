@@ -17,7 +17,7 @@ export class NotationViewer extends HTMLElement {
             anacrouse: 0,
             displayMode: 'both',
             visualTranspose: 0,
-            zoom: 1
+            zoom: 0.6
         };
     }
 
@@ -30,7 +30,7 @@ export class NotationViewer extends HTMLElement {
     }
 
     updateData(title, key, melody, chords, revealMelody = 'empty', revealChords = false, timeSignature = [4, 4], anacrouse = 0, displayMode = 'both', visualTranspose = 0) {
-        const currentZoom = this.state.zoom || 1;
+        const currentZoom = this.state.zoom || 0.6;
         this.state = { title, key, melody, chords, revealMelody, revealChords, timeSignature, anacrouse, displayMode, visualTranspose, zoom: currentZoom };
         this.render();
     }
@@ -391,7 +391,7 @@ export class NotationViewer extends HTMLElement {
         const height = totalLines * SYSTEM_HEIGHT + TITLE_HEIGHT;
 
         let svgHtml = `
-            <svg viewBox="0 0 ${WIDTH} ${height}" width="${(this.state.zoom || 1) * 100}%" xmlns="http://www.w3.org/2000/svg" style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; display: block; cursor: pointer;">
+            <svg viewBox="0 0 ${WIDTH} ${height}" width="${(this.state.zoom || 0.6) * 100}%" xmlns="http://www.w3.org/2000/svg" style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; display: block; cursor: pointer;">
                 <style>
                     .staff-line { stroke: #64748b; stroke-width: 1; }
                     .clef-text { font-family: serif; font-size: 42px; font-weight: bold; fill: #1e293b; }
@@ -1049,9 +1049,9 @@ export class NotationViewer extends HTMLElement {
                     svg { margin: 0 auto; display: block; user-select: none; -webkit-user-select: none; }
                 </style>
                 <div class="zoom-controls">
-                    <label id="reset-zoom-btn" style="cursor: pointer;" title="Reset to 100%">🔍 Zoom</label>
-                    <input type="range" id="zoom-slider" min="0.2" max="3.0" step="0.05" value="${this.state.zoom || 1}">
-                    <span id="zoom-display">${Math.round((this.state.zoom || 1) * 100)}%</span>
+                    <label id="reset-zoom-btn" style="cursor: pointer;" title="Reset to 60%">🔍 Zoom</label>
+                    <input type="range" id="zoom-slider" min="0.2" max="2.0" step="0.05" value="${this.state.zoom || 0.6}">
+                    <span id="zoom-display">${Math.round((this.state.zoom || 0.6) * 100)}%</span>
                 </div>
                 <div class="score-wrapper"></div>
             `;
@@ -1067,18 +1067,18 @@ export class NotationViewer extends HTMLElement {
 
             const resetBtn = this.shadowRoot.getElementById('reset-zoom-btn');
             resetBtn.addEventListener('click', () => {
-                this.state.zoom = 1;
-                slider.value = 1;
-                display.textContent = '100%';
+                this.state.zoom = 0.6;
+                slider.value = 0.6;
+                display.textContent = '60%';
                 const svg = this.shadowRoot.querySelector('svg');
-                if (svg) svg.setAttribute('width', '100%');
+                if (svg) svg.setAttribute('width', '60%');
             });
 
             this.addEventListener('wheel', (e) => {
                 if (e.ctrlKey) {
                     e.preventDefault();
                     const zoomDelta = e.deltaY > 0 ? -0.1 : 0.1;
-                    let newZoom = (this.state.zoom || 1) + zoomDelta;
+                    let newZoom = (this.state.zoom || 0.6) + zoomDelta;
                     newZoom = Math.max(0.2, Math.min(3.0, Math.round(newZoom * 100) / 100));
                     if (newZoom !== this.state.zoom) {
                         this.state.zoom = newZoom;
