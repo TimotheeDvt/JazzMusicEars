@@ -631,6 +631,12 @@ export class NotationViewer extends HTMLElement {
                 const text = note.type === 'ENDING_1' ? '1.' : '2.';
                 svgHtml += `<path d="M${barX} ${startY} L${barX} ${bracketY} L${barX + 60} ${bracketY}" fill="none" stroke="#1e293b" stroke-width="1.5"/>`;
                 svgHtml += `<text x="${barX + 8}" y="${textY}" font-family="sans-serif" font-size="14" font-weight="bold" fill="#1e293b">${text}</text>`;
+
+                if (note.type === 'ENDING_2') {
+                    globalLastNoteX = null;
+                    globalLastNoteY = null;
+                    globalLastLineIdx = null;
+                }
                 return;
             }
 
@@ -649,6 +655,10 @@ export class NotationViewer extends HTMLElement {
                     svgHtml += `<circle cx="${barX + 8}" cy="${lineYOffset + tabYOffset + 24}" r="2" fill="#334155"/>`;
                     svgHtml += `<circle cx="${barX + 8}" cy="${lineYOffset + tabYOffset + 36}" r="2" fill="#334155"/>`;
                 }
+
+                globalLastNoteX = null;
+                globalLastNoteY = null;
+                globalLastLineIdx = null;
                 return;
             }
             if (note.type === 'REPEAT_END') {
@@ -665,10 +675,18 @@ export class NotationViewer extends HTMLElement {
                     svgHtml += `<circle cx="${barX - 8}" cy="${lineYOffset + tabYOffset + 34}" r="2" fill="#334155"/>`;
                     svgHtml += `<circle cx="${barX - 8}" cy="${lineYOffset + tabYOffset + 46}" r="2" fill="#334155"/>`;
                 }
+
+                globalLastNoteX = null;
+                globalLastNoteY = null;
+                globalLastLineIdx = null;
                 return;
             }
 
             if (note.isRest) {
+                globalLastNoteX = null;
+                globalLastNoteY = null;
+                globalLastLineIdx = null;
+
                 note.comps.forEach((comp) => {
                     const pos = getPos(comp.beat);
 
@@ -725,30 +743,41 @@ export class NotationViewer extends HTMLElement {
 
                 // Handle Tie curves natively across structural breaks
                 const isTiedToPrev = (idx === 0 && note.tied) || (idx > 0);
-                if (isTiedToPrev && globalLastNoteX !== null) {
-                    if (drawStaff) {
-                        if (globalLastLineIdx === pos.lineIndex) {
-                            const tieDir = staffInfo.y <= 70 ? -1 : 1;
-                            const midX = (globalLastNoteX + pos.x) / 2;
-                            svgHtml += `<path d="M${globalLastNoteX + 5} ${globalLastNoteY + tieDir * 8} Q${midX} ${globalLastNoteY + tieDir * 14} ${pos.x - 5} ${staffY + tieDir * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
-                        } else {
-                            // Cross-system broken ties
-                            const tieDir1 = (globalLastNoteY - (globalLastLineIdx * SYSTEM_HEIGHT)) <= 70 ? -1 : 1;
-                            svgHtml += `<path d="M${globalLastNoteX + 5} ${globalLastNoteY + tieDir1 * 8} Q${globalLastNoteX + 20} ${globalLastNoteY + tieDir1 * 14} ${globalLastNoteX + 35} ${globalLastNoteY + tieDir1 * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                if (isTiedToPrev) {
+                    if (globalLastNoteX !== null) {
+                        if (drawStaff) {
+                            if (globalLastLineIdx === pos.lineIndex) {
+                                const tieDir = staffInfo.y <= 70 ? -1 : 1;
+                                const midX = (globalLastNoteX + pos.x) / 2;
+                                svgHtml += `<path d="M${globalLastNoteX + 5} ${globalLastNoteY + tieDir * 8} Q${midX} ${globalLastNoteY + tieDir * 14} ${pos.x - 5} ${staffY + tieDir * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                            } else {
+                                // Cross-system broken ties
+                                const tieDir1 = (globalLastNoteY - (globalLastLineIdx * SYSTEM_HEIGHT)) <= 70 ? -1 : 1;
+                                svgHtml += `<path d="M${globalLastNoteX + 5} ${globalLastNoteY + tieDir1 * 8} Q${globalLastNoteX + 20} ${globalLastNoteY + tieDir1 * 14} ${globalLastNoteX + 35} ${globalLastNoteY + tieDir1 * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
 
-                            const tieDir2 = staffInfo.y <= 70 ? -1 : 1;
-                            svgHtml += `<path d="M${pos.x - 35} ${staffY + tieDir2 * 8} Q${pos.x - 20} ${staffY + tieDir2 * 14} ${pos.x - 5} ${staffY + tieDir2 * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                                const tieDir2 = staffInfo.y <= 70 ? -1 : 1;
+                                svgHtml += `<path d="M${pos.x - 35} ${staffY + tieDir2 * 8} Q${pos.x - 20} ${staffY + tieDir2 * 14} ${pos.x - 5} ${staffY + tieDir2 * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                            }
+                        } else {
+                            const tieY = pos.yOffset + tabYOffset + 68;
+                            if (globalLastLineIdx === pos.lineIndex) {
+                                const midX = (globalLastNoteX + pos.x) / 2;
+                                svgHtml += `<path d="M${globalLastNoteX + 5} ${tieY} Q${midX} ${tieY + 10} ${pos.x - 5} ${tieY}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                            } else {
+                                const tieYPrev = (globalLastLineIdx * SYSTEM_HEIGHT) + tabYOffset + 68;
+                                svgHtml += `<path d="M${globalLastNoteX + 5} ${tieYPrev} Q${globalLastNoteX + 20} ${tieYPrev + 10} ${globalLastNoteX + 35} ${tieYPrev}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+
+                                svgHtml += `<path d="M${pos.x - 35} ${tieY} Q${pos.x - 20} ${tieY + 10} ${pos.x - 5} ${tieY}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                            }
                         }
                     } else {
-                        const tieY = pos.yOffset + tabYOffset + 68;
-                        if (globalLastLineIdx === pos.lineIndex) {
-                            const midX = (globalLastNoteX + pos.x) / 2;
-                            svgHtml += `<path d="M${globalLastNoteX + 5} ${tieY} Q${midX} ${tieY + 10} ${pos.x - 5} ${tieY}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                        // "Tie from nowhere" (e.g., after a repeat or at the very start)
+                        if (drawStaff) {
+                            const tieDir = staffInfo.y <= 70 ? -1 : 1;
+                            svgHtml += `<path d="M${pos.x - 20} ${staffY + tieDir * 8} Q${pos.x - 12} ${staffY + tieDir * 10} ${pos.x - 5} ${staffY + tieDir * 8}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
                         } else {
-                            const tieYPrev = (globalLastLineIdx * SYSTEM_HEIGHT) + tabYOffset + 68;
-                            svgHtml += `<path d="M${globalLastNoteX + 5} ${tieYPrev} Q${globalLastNoteX + 20} ${tieYPrev + 10} ${globalLastNoteX + 35} ${tieYPrev}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
-
-                            svgHtml += `<path d="M${pos.x - 35} ${tieY} Q${pos.x - 20} ${tieY + 10} ${pos.x - 5} ${tieY}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
+                            const tieY = pos.yOffset + tabYOffset + 68;
+                            svgHtml += `<path d="M${pos.x - 20} ${tieY + 10} Q${pos.x - 12} ${tieY} ${pos.x - 5} ${tieY}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
                         }
                     }
                 }
