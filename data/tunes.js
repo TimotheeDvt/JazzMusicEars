@@ -5,8 +5,8 @@
  * Chords format: Absolute root note + chord type quality string
  */
 export const jazzStandards = [
-    // "autumn-leaves",
-    // "blue-bossa",
+    "autumn-leaves",
+    "blue-bossa",
     "misty"
 ];
 
@@ -77,6 +77,11 @@ export function parseMelodyString(melodyStr, keyName = "C") {
     };
 
     for (const token of tokens) {
+        // Ignore bracketed comments completely
+        if (token.startsWith('[') && token.endsWith(']')) {
+            continue;
+        }
+
         if (token === '|:') {
             rawElements.push({ type: 'REPEAT_START', visualBeat });
             continue;
@@ -190,6 +195,11 @@ export function parseChordsString(chordStr) {
     let visualBeat = 0;
 
     for (const token of tokens) {
+        // Ignore bracketed comments completely
+        if (token.startsWith('[') && token.endsWith(']')) {
+            continue;
+        }
+
         if (token === '|:') {
             rawElements.push({ type: 'REPEAT_START', visualBeat });
             continue;

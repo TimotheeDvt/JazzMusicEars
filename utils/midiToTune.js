@@ -126,13 +126,14 @@ function convertMidiToTune(midiFilePath, tuneId) {
         detectedKey = lastNote.name.replace(/\d/g, ''); // Removes octave (e.g., C4 -> C)
     }
 
-    let melodyString = "";
+    let melodyString = "[1] ";
     let currentBeat = 0;
     let measureBeats = 0;
     const beatsPerBar = timeSig[0]; // Typically 4 for 4/4
+    let measureNumberMelody = 1;
 
     // --- MELODY PARSING ---
-    melodyTrack.notes.forEach(note => {
+    melodyTrack.notes.forEach((note, index) => {
         // Convert MIDI ticks to quarter-note beats
         let startBeat = quantize(note.ticks / ppq);
         let durationBeats = quantize(note.durationTicks / ppq);
@@ -148,9 +149,10 @@ function convertMidiToTune(midiFilePath, tuneId) {
             const restBeats = startBeat - currentBeat;
             melodyString += `${formatDuration(restBeats)} `;
             measureBeats += restBeats;
-            if (measureBeats >= beatsPerBar) {
-                melodyString += `\n        `;
-                measureBeats %= beatsPerBar;
+            while (measureBeats >= beatsPerBar - 0.001) {
+                measureNumberMelody++;
+                melodyString += `\n        [${measureNumberMelody}] `;
+                measureBeats -= beatsPerBar;
             }
         }
 
@@ -159,9 +161,12 @@ function convertMidiToTune(midiFilePath, tuneId) {
         measureBeats += durationBeats;
 
         // Formatting: insert a barline and newline roughly every measure for readability
-        if (measureBeats >= beatsPerBar) {
-            melodyString += `\n        `;
-            measureBeats %= beatsPerBar;
+        if (index < melodyTrack.notes.length - 1) {
+            while (measureBeats >= beatsPerBar - 0.001) {
+                measureNumberMelody++;
+                melodyString += `\n        [${measureNumberMelody}] `;
+                measureBeats -= beatsPerBar;
+            }
         }
 
         currentBeat = startBeat + durationBeats;
@@ -189,6 +194,8 @@ function convertMidiToTune(midiFilePath, tuneId) {
         const sortedTicks = Array.from(notesByTick.keys()).sort((a, b) => a - b);
         let lastChordBeat = 0;
         let measureBeatsChords = 0;
+        let chordsStringOutput = "[1] ";
+        let measureNumberChords = 1;
 
         for (let i = 0; i < sortedTicks.length; i++) {
             const tick = sortedTicks[i];
@@ -208,11 +215,12 @@ function convertMidiToTune(midiFilePath, tuneId) {
                 // If there's a gap, insert a rest (NC - No Chord)
                 if (startBeat > lastChordBeat) {
                     const restDuration = startBeat - lastChordBeat;
-                    chordsString += `NC:-:${formatDuration(restDuration)} `;
+                    chordsStringOutput += `NC:-:${formatDuration(restDuration)} `;
                     measureBeatsChords += restDuration;
-                    if (measureBeatsChords >= beatsPerBar) {
-                        chordsString += `\n        `;
-                        measureBeatsChords %= beatsPerBar;
+                    while (measureBeatsChords >= beatsPerBar - 0.001) {
+                        measureNumberChords++;
+                        chordsStringOutput += `\n        [${measureNumberChords}] `;
+                        measureBeatsChords -= beatsPerBar;
                     }
                 }
 
@@ -224,16 +232,20 @@ function convertMidiToTune(midiFilePath, tuneId) {
                 if (duration <= 0) duration = 0.5;
 
                 const rootName = midiToNoteName(chord.root);
-                chordsString += `${rootName}:${chord.type}:${formatDuration(duration)} `;
+                chordsStringOutput += `${rootName}:${chord.type}:${formatDuration(duration)} `;
                 measureBeatsChords += duration;
                 lastChordBeat = startBeat + duration;
 
-                if (measureBeatsChords >= beatsPerBar) {
-                    chordsString += `\n        `;
-                    measureBeatsChords %= beatsPerBar;
+                if (i < sortedTicks.length - 1) {
+                    while (measureBeatsChords >= beatsPerBar - 0.001) {
+                        measureNumberChords++;
+                        chordsStringOutput += `\n        [${measureNumberChords}] `;
+                        measureBeatsChords -= beatsPerBar;
+                    }
                 }
             }
         }
+        chordsString = chordsStringOutput;
     }
 
     // If no chords were parsed, use a default placeholder
@@ -244,7 +256,7 @@ function convertMidiToTune(midiFilePath, tuneId) {
     // Create a generic Title from the tune ID
     const title = tuneId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
-    const outputCode = `import { parseMelodyString, parseChordsString } from '../tunes.js';\n\nconst originalKey = "${detectedKey}";\n\nexport const tune = {\n    id: "${tuneId}",\n    title: "${title}",\n    originalKey: originalKey,\n    timeSignature: [${timeSig[0]}, ${timeSig[1]}],\n    anacrouse: 0,\n    originalTempo: ${tempo},\n    visualTranspose: 0,\n\n\n    melody: parseMelodyString(\`\n        ${melodyString.trim()}\n    \`, originalKey),\n\n\n    chords: parseChordsString(\`\n        ${chordsString.trim()}\n    \`),\n\n    youtube: ""\n};\n`;
+    const outputCode = `import { parseMelodyString, parseChordsString } from '../tunes.js';\n\nconst originalKey = "${detectedKey}";\n\nexport const tune = {\n    id: "${tuneId}",\n    title: "${title}",\n    originalKey: originalKey,\n    timeSignature: [${timeSig[0]}, ${timeSig[1]}],\n    anacrouse: ${anacrouse},\n    originalTempo: ${tempo},\n    visualTranspose: 0,\n\n\n    melody: parseMelodyString(\`\n        ${melodyString.trim()}\n    \`, originalKey),\n\n\n    chords: parseChordsString(\`\n        ${chordsString.trim()}\n    \`),\n\n    youtube: ""\n};\n`;
 
     const outputPath = path.join(__dirname, '../data/tuneFiles', `${tuneId}.js`);
     fs.writeFileSync(outputPath, outputCode);
@@ -254,9 +266,10 @@ function convertMidiToTune(midiFilePath, tuneId) {
 
 const args = process.argv.slice(2);
 if (args.length < 2) {
-    console.log("Usage: node midiToTune.js <path-to-midi-file> <tune-id>");
-    console.log("Example: node midiToTune.js ./my-melody.mid cool-new-tune");
+    console.log("Usage: node midiToTune.js <path-to-midi-file> <tune-id> [anacrouse-beats]");
+    console.log("Example: node midiToTune.js ./my-melody.mid cool-new-tune 1.5");
     process.exit(1);
 }
 
-convertMidiToTune(args[0], args[1]);
+const anacrouse = args.length > 2 ? parseFloat(args[2]) : 0;
+convertMidiToTune(args[0], args[1], isNaN(anacrouse) ? 0 : anacrouse);

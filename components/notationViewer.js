@@ -448,6 +448,17 @@ export class NotationViewer extends HTMLElement {
             svgHtml += `<line x1="20" y1="${yOffset + barLineStartY}" x2="20" y2="${yOffset + barLineEndY}" class="bar-line"/>`;
             svgHtml += `<line x1="${WIDTH - 20}" y1="${yOffset + barLineStartY}" x2="${WIDTH - 20}" y2="${yOffset + barLineEndY}" class="bar-line"/>`;
 
+            // Draw Measure Number at the beginning of each line (Skip measure 0 pickups)
+            const firstMeasureOnLine = measures.find(m => m.lineIndex === lineIndex);
+            if (firstMeasureOnLine) {
+                let measureNum = anacrouse > 0 ? firstMeasureOnLine.index : firstMeasureOnLine.index + 1;
+                if (measureNum > 0) {
+                    const measureNumX = 8;
+                    const measureNumY = yOffset + (drawStaff ? 38 : tabYOffset - 5);
+                    svgHtml += `<text x="${measureNumX}" y="${measureNumY}" font-family="sans-serif" font-size="14" font-weight="bold" fill="#64748b">${measureNum}</text>`;
+                }
+            }
+
             if (drawStaff) {
                 // Draw Key Signature
                 let kxLocal = 55;
