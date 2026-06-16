@@ -27,30 +27,37 @@ class AudioEngine {
             this.chordGain.connect(this.ctx.destination);
             this.clickGain.connect(this.ctx.destination);
 
-            this.melodyGain.gain.value = this.melodyVolume;
-            this.chordGain.gain.value = this.chordVolume;
-            this.clickGain.gain.value = this.clickVolume;
+            this.melodyGain.gain.value = Math.pow(this.melodyVolume, 2);
+            this.chordGain.gain.value = Math.pow(this.chordVolume, 2);
+            this.clickGain.gain.value = this.clickEnabled ? Math.pow(this.clickVolume, 2) : 0;
         }
     }
 
     setMelodyVolume(val) {
         this.melodyVolume = val;
         if (this.melodyGain && this.ctx) {
-            this.melodyGain.gain.setTargetAtTime(val, this.ctx.currentTime, 0.05); // Smooth slide transition
+            this.melodyGain.gain.setTargetAtTime(Math.pow(val, 2), this.ctx.currentTime, 0.05); // Exponential Audio Taper
         }
     }
 
     setChordVolume(val) {
         this.chordVolume = val;
         if (this.chordGain && this.ctx) {
-            this.chordGain.gain.setTargetAtTime(val, this.ctx.currentTime, 0.05); // Smooth slide transition
+            this.chordGain.gain.setTargetAtTime(Math.pow(val, 2), this.ctx.currentTime, 0.05); // Exponential Audio Taper
         }
     }
 
     setClickVolume(val) {
         this.clickVolume = val;
+        if (this.clickGain && this.ctx && this.clickEnabled) {
+            this.clickGain.gain.setTargetAtTime(Math.pow(val, 2), this.ctx.currentTime, 0.05);
+        }
+    }
+
+    setClickEnabled(enabled) {
+        this.clickEnabled = enabled;
         if (this.clickGain && this.ctx) {
-            this.clickGain.gain.setTargetAtTime(val, this.ctx.currentTime, 0.05); // Smooth slide transition
+            this.clickGain.gain.setTargetAtTime(enabled ? Math.pow(this.clickVolume, 2) : 0, this.ctx.currentTime, 0.01);
         }
     }
 
@@ -194,10 +201,8 @@ class AudioEngine {
             maxBeat = Math.max(maxBeat, note.beat + note.duration);
         });
 
-        if (this.clickEnabled) {
-            for (let b = Math.ceil(startBeat); b < Math.ceil(maxBeat); b++) {
-                this.playClick(startNow + ((b - startBeat) * this.secPerBeat));
-            }
+        for (let b = Math.ceil(startBeat); b < Math.ceil(maxBeat); b++) {
+            this.playClick(startNow + ((b - startBeat) * this.secPerBeat));
         }
 
         return (maxBeat - startBeat) * this.secPerBeat;
@@ -251,10 +256,8 @@ class AudioEngine {
             maxBeat = Math.max(maxBeat, chord.beat + chord.duration);
         });
 
-        if (this.clickEnabled) {
-            for (let b = Math.ceil(startBeat); b < Math.ceil(maxBeat); b++) {
-                this.playClick(startNow + ((b - startBeat) * this.secPerBeat));
-            }
+        for (let b = Math.ceil(startBeat); b < Math.ceil(maxBeat); b++) {
+            this.playClick(startNow + ((b - startBeat) * this.secPerBeat));
         }
 
         return (maxBeat - startBeat) * this.secPerBeat;
@@ -315,10 +318,8 @@ class AudioEngine {
                 });
             });
 
-            if (this.clickEnabled) {
-                for (let b = Math.ceil(currentStartBeat); b < Math.ceil(totalBeats); b++) {
-                    this.playClick(startNow + ((b - currentStartBeat) * this.secPerBeat));
-                }
+            for (let b = Math.ceil(currentStartBeat); b < Math.ceil(totalBeats); b++) {
+                this.playClick(startNow + ((b - currentStartBeat) * this.secPerBeat));
             }
         };
 

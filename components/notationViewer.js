@@ -1044,7 +1044,7 @@ export class NotationViewer extends HTMLElement {
                 <style>
                     :host { display: block; width: 100%; height: 100%; min-height: 0; position: relative; }
                     .score-wrapper { width: 100%; height: 100%; overflow: auto; padding: 10px; box-sizing: border-box; }
-                    .zoom-controls { position: absolute; bottom: 20px; right: -10px; background: rgba(255, 255, 255, 0.95); padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 10px; z-index: 10; font-family: sans-serif; font-size: 13px; color: #1e293b; }
+                    .zoom-controls { position: absolute; bottom: 20px; right: -10px; background: #1e293b; padding: 8px 12px; border: 1px solid #0f172a; border-radius: 8px; box-shadow: 0 8px 12px #0f172a; display: flex; align-items: center; gap: 10px; z-index: 10; font-family: sans-serif; font-size: 13px; color: #f8fafc; }
                     .zoom-controls input[type="range"] { cursor: pointer; width: 125px; margin: 0; }
                     svg { margin: 0 auto; display: block; user-select: none; -webkit-user-select: none; }
                 </style>

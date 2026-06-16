@@ -2,6 +2,7 @@ import { jazzStandards, KEYS } from './data/tunes.js';
 import { audioEngine } from './services/audioEngine.js';
 import { Scheduler } from './services/scheduler.js';
 import './components/notationViewer.js';
+import './components/rotaryKnob.js';
 
 class AppController {
     constructor() {

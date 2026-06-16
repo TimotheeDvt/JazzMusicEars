@@ -62,18 +62,18 @@
                     <button style="display: none;" id="toggle-chords-btn" class="btn secondary">Loop Chords:
                         OFF</button>
                 </div>
-                <div style="display: grid; gap: 15px; align-items: center; margin-top: 5px; grid-template-areas: 'a b' 'c c';">
-                    <div style="display: flex; flex-direction: column; gap: 5px;">
-                        <label for="melody-volume" style="grid-area: a; font-size: 12px; font-weight: bold;">Melody</label>
-                        <input type="range" id="melody-volume" min="0" max="1" step="0.05" value="1" style="cursor: pointer; width: 100px;">
+                <div style="display: flex; justify-content: space-around; align-items: center; margin: 5px 0;">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                        <label for="melody-volume" style="font-size: 12px; font-weight: bold">Melody</label>
+                        <rotary-knob id="melody-volume" value="1"></rotary-knob>
                     </div>
-                    <div style="grid-area: b; display: flex; flex-direction: column; gap: 5px;">
-                        <label for="chord-volume" style="font-size: 12px; font-weight: bold;">Chord</label>
-                        <input type="range" id="chord-volume" min="0" max="1" step="0.05" value="1" style="cursor: pointer; width: 100px;">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                        <label for="chord-volume" style="font-size: 12px; font-weight: bold">Chords</label>
+                        <rotary-knob id="chord-volume" value="1"></rotary-knob>
                     </div>
-                    <div style="grid-area: c; display: flex; flex-direction: column; gap: 5px;">
-                        <label for="click-volume" style="font-size: 12px; font-weight: bold;">Click</label>
-                        <input type="range" id="click-volume" min="0" max="1" step="0.05" value="1" style="cursor: pointer;">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                        <label for="click-volume" style="font-size: 12px; font-weight: bold">Click</label>
+                        <rotary-knob id="click-volume" value="0.5"></rotary-knob>
                     </div>
                 </div>
                 <div class="control-group">
