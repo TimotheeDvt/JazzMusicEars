@@ -72,5 +72,5 @@ export const tune = {
         [27] F3:m7:2 Bb3:7:2
     `),
 
-    youtube: ""
+    youtube: "https://youtu.be/rPOlakkBlj8"
 };
