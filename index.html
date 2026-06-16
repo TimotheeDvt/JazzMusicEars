@@ -16,13 +16,6 @@
     <header>
         <h1>Jazz Standard Ear Trainer</h1>
         <div id="setup-panel" class="panel">
-            <label for="tempo">BPM:</label>
-            <input type="number" id="tempo" min="40" max="300" value="120">
-            <select id="display-mode" class="display-mode-select">
-                <option value="both">Staff & Tabs</option>
-                <option value="staff">Staff Only</option>
-                <option value="tabs">Tabs Only</option>
-            </select>
             <button id="manage-tunes-btn" class="btn secondary">Select Tunes</button>
             <button id="export-btn" class="btn secondary" style="display: none;">Export Data</button>
             <button id="import-btn" class="btn secondary" style="display: none;">Import Data</button>
@@ -58,8 +51,11 @@
             <section id="controls-card" class="card grid-controls">
                 <div class="control-group">
                     <button id="play-btn" class="btn primary">Play</button>
-                    <button style="display: none;" id="toggle-chords-btn" class="btn secondary">Loop Chords:
-                        OFF</button>
+                    <button style="display: none;" id="toggle-chords-btn" class="btn secondary">Loop Chords: OFF</button>
+                </div>
+                <div style="display: flex; justify-content: center; align-items: center; margin: 5px 0; gap: 10px">
+                    <label for="tempo">BPM</label>
+                    <input type="number" id="tempo" min="40" max="300" value="120" style="width:fit-content;">
                 </div>
                 <div style="display: flex; justify-content: space-around; align-items: center; margin: 5px 0;">
                     <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
@@ -75,6 +71,14 @@
                         <rotary-knob id="click-volume" value="0.5"></rotary-knob>
                     </div>
                 </div>
+            </section>
+
+            <section id="controls-card" class="card">
+                <select id="display-mode" class="display-mode-select" style="width: 100%; margin: 0 0 10px 0;">
+                    <option value="both">Staff & Tabs</option>
+                    <option value="staff">Staff Only</option>
+                    <option value="tabs">Tabs Only</option>
+                </select>
                 <div class="control-group">
                     <button id="reveal-first-btn" class="btn hint">Reveal First Note</button>
                     <button id="reveal-melody-btn" class="btn hint">Reveal Full Melody</button>
@@ -89,7 +93,7 @@
                     <button class="btn conf-btn" data-level="3">3 - Comfortable</button>
                     <button class="btn conf-btn" data-level="4">4 - Mastered</button>
                 </div>
-                <button id="next-tune-btn" class="btn action hidden">Next Tune →</button>
+                <button id="next-tune-btn" class="btn action hidden" style="margin: 0;">Next Tune →</button>
             </section>
         </div>
     </main>
