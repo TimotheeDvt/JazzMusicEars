@@ -311,7 +311,7 @@ export class NotationViewer extends HTMLElement {
             let currentNoteBeat = note.visualBeat !== undefined ? note.visualBeat : note.beat;
             let remaining = note.duration;
             let comps = [];
-            [4, 3, 2, 1.5, 1, 0.5].forEach(val => {
+            [4, 3, 2, 1.5, 1, 0.75, 2/3, 0.5, 1/3, 0.25, 1/6].forEach(val => {
                 while (remaining >= val - 0.001) {
                     comps.push({ dur: val, beat: currentNoteBeat });
                     allEventBeats.add(currentNoteBeat);
@@ -407,6 +407,19 @@ export class NotationViewer extends HTMLElement {
             };
         };
 
+        const getMeasureIndexForBeat = (beat) => {
+            for (let i = 0; i < measures.length; i++) {
+                if (beat >= measures[i].startBeat - 0.001 && beat < measures[i].endBeat - 0.001) {
+                    return measures[i].index;
+                }
+            }
+            // Handle beat on the very last barline
+            if (measures.length > 0 && Math.abs(beat - measures[measures.length - 1].endBeat) < 0.001) {
+                return measures[measures.length - 1].index;
+            }
+            return -1;
+        };
+
         // --- DRAW MUSICAL SYSTEMS ---
         for (let lineIndex = 0; lineIndex < totalLines; lineIndex++) {
             const yOffset = lineIndex * SYSTEM_HEIGHT + TITLE_HEIGHT;
@@ -486,6 +499,104 @@ export class NotationViewer extends HTMLElement {
             svgHtml += `<text x="${pos.x}" y="${pos.yOffset + 30}" class="chord-label">${name}</text>`;
         });
 
+        // --- PRE-CALCULATE BEAMS AND POSITIONS ---
+        let allComps = [];
+        visibleNotes.forEach(note => {
+            if (note === 'BAR' || note.type === 'BAR' || note.isRepeat) return;
+            if (note.type === 'ENDING_1' || note.type === 'ENDING_2' || note.type === 'REPEAT_START' || note.type === 'REPEAT_END') return;
+            if (note.comps) {
+                note.comps.forEach(c => {
+                    c.isRest = note.isRest;
+                    c.pitch = note.pitch;
+                    c.stringNum = note.stringNum;
+                    c.staffPitch = note.pitch !== undefined ? note.pitch + (visualTranspose || 0) : undefined;
+                    allComps.push(c);
+                });
+            }
+        });
+        allComps.sort((a, b) => a.beat - b.beat);
+
+        allComps.forEach(comp => {
+            if (!comp.isRest) {
+                comp.pos = getPos(comp.beat);
+                if (comp.staffPitch !== undefined) {
+                    comp.staffInfo = this.midiToStaffInfo(comp.staffPitch, transposedKey);
+                    comp.staffY = comp.pos.yOffset + comp.staffInfo.y;
+                }
+                if (comp.pitch !== undefined) {
+                    comp.guitar = this.midiToGuitar(comp.pitch, comp.stringNum);
+                    comp.tabY = comp.pos.yOffset + tabYOffset + ((comp.guitar.stringNum - 1) * 12);
+                }
+            }
+        });
+
+        let staffBeamGroups = [];
+        let tabBeamGroups = [];
+
+        if (drawStaff) {
+            let currentGroup = [];
+            allComps.forEach(comp => {
+                if (comp.isRest || comp.dur > 0.5 + 0.001) {
+                    if (currentGroup.length > 1) staffBeamGroups.push(currentGroup);
+                    currentGroup = [];
+                    return;
+                }
+                if (currentGroup.length > 0) {
+                    let prev = currentGroup[currentGroup.length - 1];
+                    if (getMeasureIndexForBeat(prev.beat) !== getMeasureIndexForBeat(comp.beat) || Math.floor(comp.beat) !== Math.floor(prev.beat) || comp.pos.lineIndex !== prev.pos.lineIndex) {
+                        if (currentGroup.length > 1) staffBeamGroups.push(currentGroup);
+                        currentGroup = [];
+                    }
+                }
+                currentGroup.push(comp);
+            });
+            if (currentGroup.length > 1) staffBeamGroups.push(currentGroup);
+        }
+
+        if (drawTabs) {
+            let currentGroup = [];
+            allComps.forEach(comp => {
+                if (comp.isRest || comp.dur > 0.5 + 0.001) {
+                    if (currentGroup.length > 1) tabBeamGroups.push(currentGroup);
+                    currentGroup = [];
+                    return;
+                }
+                if (currentGroup.length > 0) {
+                    let prev = currentGroup[currentGroup.length - 1];
+                    if (getMeasureIndexForBeat(prev.beat) !== getMeasureIndexForBeat(comp.beat) || Math.floor(comp.beat) !== Math.floor(prev.beat) || comp.pos.lineIndex !== prev.pos.lineIndex) {
+                        if (currentGroup.length > 1) tabBeamGroups.push(currentGroup);
+                        currentGroup = [];
+                    }
+                }
+                currentGroup.push(comp);
+            });
+            if (currentGroup.length > 1) tabBeamGroups.push(currentGroup);
+        }
+
+        staffBeamGroups.forEach(group => {
+            let avgY = group.reduce((sum, c) => sum + c.staffY, 0) / group.length;
+            let stemDown = avgY <= (group[0].pos.yOffset + 70);
+            let extremeY = stemDown ? Math.max(...group.map(c => c.staffY)) + 30 : Math.min(...group.map(c => c.staffY)) - 30;
+            
+            group.forEach(c => {
+                c.isBeamedStaff = true;
+                c.stemDownStaff = stemDown;
+                c.stemY2Staff = extremeY;
+            });
+            group.beamY = extremeY;
+            group.stemDownStaff = stemDown;
+        });
+
+        tabBeamGroups.forEach(group => {
+            let extremeY = Math.max(...group.map(c => c.tabY)) + 25;
+            group.forEach(c => {
+                c.isBeamedTab = true;
+                c.stemDownTab = true;
+                c.stemY2Tab = extremeY;
+            });
+            group.beamY = extremeY;
+        });
+
         // --- RENDER REVEALED MELODY NOTES ---
         let globalLastNoteX = null;
         let globalLastNoteY = null;
@@ -553,19 +664,19 @@ export class NotationViewer extends HTMLElement {
                     const pos = getPos(comp.beat);
 
                     if (drawStaff) {
-                        if (comp.dur >= 4) {
+                        if (comp.dur >= 4 - 0.001) {
                             svgHtml += `<rect x="${pos.x - 6}" y="${pos.yOffset + 60}" width="12" height="5" fill="#0f172a"/>`;
-                        } else if (comp.dur >= 2) {
+                        } else if (comp.dur >= 2 - 0.001) {
                             svgHtml += `<rect x="${pos.x - 6}" y="${pos.yOffset + 65}" width="12" height="5" fill="#0f172a"/>`;
-                        } else if (comp.dur >= 1) {
+                        } else if (comp.dur >= 2/3 - 0.001) {
                             svgHtml += `<path d="M${pos.x - 3} ${pos.yOffset + 55} L${pos.x + 4} ${pos.yOffset + 65} L${pos.x - 2} ${pos.yOffset + 73} C${pos.x + 5} ${pos.yOffset + 73} ${pos.x + 5} ${pos.yOffset + 84} ${pos.x - 2} ${pos.yOffset + 84} C${pos.x - 4} ${pos.yOffset + 84} ${pos.x - 4} ${pos.yOffset + 80} ${pos.x - 1} ${pos.yOffset + 80}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
-                        } else if (comp.dur === 0.5) {
+                        } else if (comp.dur >= 1/6 - 0.001) {
                             svgHtml += `<circle cx="${pos.x - 3}" cy="${pos.yOffset + 64}" r="2" fill="#0f172a"/>`;
                             svgHtml += `<path d="M${pos.x - 3} ${pos.yOffset + 64} Q${pos.x + 5} ${pos.yOffset + 60} ${pos.x + 4} ${pos.yOffset + 70} L${pos.x - 1} ${pos.yOffset + 82}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
                         }
 
                         // Draw Dot for Dotted rests
-                        if (comp.dur === 3 || comp.dur === 1.5) {
+                        if (Math.abs(comp.dur - 3) < 0.01 || Math.abs(comp.dur - 1.5) < 0.01 || Math.abs(comp.dur - 0.75) < 0.01) {
                             svgHtml += `<circle cx="${pos.x + 10}" cy="${pos.yOffset + 70}" r="2" class="note-head"/>`;
                         }
                     }
@@ -635,31 +746,41 @@ export class NotationViewer extends HTMLElement {
 
                 if (drawStaff) {
                     // Draw Standard Notation Note Head (Hollow for Half/Whole notes)
-                    if (comp.dur >= 2) {
+                    if (comp.dur >= 2 - 0.001) {
                         svgHtml += `<circle cx="${pos.x}" cy="${staffY}" r="5.5" fill="#fff" stroke="#0f172a" stroke-width="2"/>`;
                     } else {
                         svgHtml += `<circle cx="${pos.x}" cy="${staffY}" r="5.5" class="note-head"/>`;
                     }
 
                     // Draw Stem direction based on staff position
-                    if (comp.dur < 4) {
-                        const stemDown = staffInfo.y <= 70;
+                    if (comp.dur < 4 - 0.001) {
+                        const stemDown = comp.isBeamedStaff !== undefined ? comp.stemDownStaff : (staffInfo.y <= 70);
                         const stemX = stemDown ? pos.x - 5 : pos.x + 5;
-                        const stemY2 = stemDown ? staffY + 30 : staffY - 30;
+                        const stemY2 = comp.isBeamedStaff ? comp.stemY2Staff : (stemDown ? staffY + 30 : staffY - 30);
                         svgHtml += `<line x1="${stemX}" y1="${staffY}" x2="${stemX}" y2="${stemY2}" stroke="#0f172a" stroke-width="1.5"/>`;
 
-                        // Draw Flag for Eighth note (0.5)
-                        if (comp.dur === 0.5) {
+                        // Draw Flag for Eighth note (0.5), triplet eighth (1/3), etc.
+                        if (!comp.isBeamedStaff && comp.dur <= 0.5 + 0.001) {
                             if (stemDown) {
                                 svgHtml += `<path d="M${stemX} ${stemY2} Q${stemX + 10} ${stemY2 - 5} ${stemX + 12} ${stemY2 - 20} Q${stemX + 6} ${stemY2 - 10} ${stemX} ${stemY2 - 10}" fill="#0f172a"/>`;
                             } else {
                                 svgHtml += `<path d="M${stemX} ${stemY2} Q${stemX + 10} ${stemY2 + 5} ${stemX + 12} ${stemY2 + 20} Q${stemX + 6} ${stemY2 + 10} ${stemX} ${stemY2 + 10}" fill="#0f172a"/>`;
                             }
+
+                            // Draw second Flag for Sixteenth note (0.25) or sixteenth triplet (1/6)
+                            if (comp.dur <= 0.25 + 0.001) {
+                                const stemY3 = stemDown ? stemY2 - 8 : stemY2 + 8;
+                                if (stemDown) {
+                                    svgHtml += `<path d="M${stemX} ${stemY3} Q${stemX + 10} ${stemY3 - 5} ${stemX + 12} ${stemY3 - 20} Q${stemX + 6} ${stemY3 - 10} ${stemX} ${stemY3 - 10}" fill="#0f172a"/>`;
+                                } else {
+                                    svgHtml += `<path d="M${stemX} ${stemY3} Q${stemX + 10} ${stemY3 + 5} ${stemX + 12} ${stemY3 + 20} Q${stemX + 6} ${stemY3 + 10} ${stemX} ${stemY3 + 10}" fill="#0f172a"/>`;
+                                }
+                            }
                         }
                     }
 
                     // Draw Dot for Dotted notes
-                    if (comp.dur === 3 || comp.dur === 1.5) {
+                    if (Math.abs(comp.dur - 3) < 0.01 || Math.abs(comp.dur - 1.5) < 0.01 || Math.abs(comp.dur - 0.75) < 0.01) {
                         svgHtml += `<circle cx="${pos.x + 10}" cy="${staffY}" r="2" class="note-head"/>`;
                     }
                 }
@@ -671,16 +792,21 @@ export class NotationViewer extends HTMLElement {
                     svgHtml += `<circle cx="${pos.x}" cy="${tabY}" r="${bgRadius}" fill="#fff"/>`;
                     svgHtml += `<text x="${pos.x}" y="${tabY + 4}" class="note-text" fill="#000" style="fill: #000; font-size:12px;">${fretText}</text>`;
 
-                    if (!drawStaff && comp.dur < 4) {
+                    if (!drawStaff && comp.dur < 4 - 0.001) {
                         const stemY1 = tabY + 10;
-                        const stemY2 = stemY1 + 25;
+                        const stemY2 = comp.isBeamedTab ? comp.stemY2Tab : stemY1 + 25;
                         svgHtml += `<line x1="${pos.x}" y1="${stemY1}" x2="${pos.x}" y2="${stemY2}" stroke="#0f172a" stroke-width="1.5"/>`;
 
-                        if (comp.dur === 0.5) {
+                        if (!comp.isBeamedTab && comp.dur <= 0.5 + 0.001) {
                             svgHtml += `<path d="M${pos.x} ${stemY2} Q${pos.x + 10} ${stemY2 - 5} ${pos.x + 12} ${stemY2 - 20} Q${pos.x + 6} ${stemY2 - 10} ${pos.x} ${stemY2 - 10}" fill="#0f172a"/>`;
                         }
+
+                        if (!comp.isBeamedTab && comp.dur <= 0.25 + 0.001) {
+                            const stemY3 = stemY2 - 8;
+                            svgHtml += `<path d="M${pos.x} ${stemY3} Q${pos.x + 10} ${stemY3 - 5} ${pos.x + 12} ${stemY3 - 20} Q${pos.x + 6} ${stemY3 - 10} ${pos.x} ${stemY3 - 10}" fill="#0f172a"/>`;
+                        }
                     }
-                    if (!drawStaff && (comp.dur === 3 || comp.dur === 1.5)) {
+                    if (!drawStaff && (Math.abs(comp.dur - 3) < 0.01 || Math.abs(comp.dur - 1.5) < 0.01 || Math.abs(comp.dur - 0.75) < 0.01)) {
                         svgHtml += `<circle cx="${pos.x + 12}" cy="${tabY}" r="2" class="note-head"/>`;
                     }
                 }
@@ -688,6 +814,162 @@ export class NotationViewer extends HTMLElement {
                 globalLastNoteX = pos.x;
                 globalLastNoteY = drawStaff ? staffY : tabY;
                 globalLastLineIdx = pos.lineIndex;
+            });
+        });
+
+        // --- RENDER BEAMS ---
+        staffBeamGroups.forEach(group => {
+            const first = group[0];
+            const last = group[group.length - 1];
+            const stemX1 = first.stemDownStaff ? first.pos.x - 5 : first.pos.x + 5;
+            const stemX2 = last.stemDownStaff ? last.pos.x - 5 : last.pos.x + 5;
+            const bY = group.beamY;
+            
+            svgHtml += `<line x1="${stemX1}" y1="${bY}" x2="${stemX2}" y2="${bY}" stroke="#0f172a" stroke-width="3"/>`;
+
+            let i = 0;
+            while(i < group.length) {
+                if (group[i].dur <= 0.25 + 0.001) {
+                    let j = i;
+                    while(j < group.length && group[j].dur <= 0.25 + 0.001) j++;
+                    
+                    let startX = group[i].stemDownStaff ? group[i].pos.x - 5 : group[i].pos.x + 5;
+                    let endX;
+                    if (j - i > 1) {
+                        endX = group[j-1].stemDownStaff ? group[j-1].pos.x - 5 : group[j-1].pos.x + 5;
+                    } else {
+                        endX = group[i].stemDownStaff ? group[i].pos.x + 3 : group[i].pos.x - 3;
+                        if (i > 0) endX = startX - 8;
+                        else endX = startX + 8;
+                    }
+                    
+                    const bY2 = group.stemDownStaff ? bY - 6 : bY + 6;
+                    svgHtml += `<line x1="${startX}" y1="${bY2}" x2="${endX}" y2="${bY2}" stroke="#0f172a" stroke-width="3"/>`;
+                    i = j;
+                } else {
+                    i++;
+                }
+            }
+        });
+
+        tabBeamGroups.forEach(group => {
+            const first = group[0];
+            const last = group[group.length - 1];
+            const stemX1 = first.pos.x;
+            const stemX2 = last.pos.x;
+            const bY = group.beamY;
+
+            svgHtml += `<line x1="${stemX1}" y1="${bY}" x2="${stemX2}" y2="${bY}" stroke="#0f172a" stroke-width="3"/>`;
+
+            let i = 0;
+            while(i < group.length) {
+                if (group[i].dur <= 0.25 + 0.001) {
+                    let j = i;
+                    while(j < group.length && group[j].dur <= 0.25 + 0.001) j++;
+                    
+                    let startX = group[i].pos.x;
+                    let endX;
+                    if (j - i > 1) {
+                        endX = group[j-1].pos.x;
+                    } else {
+                        if (i > 0) endX = startX - 8;
+                        else endX = startX + 8;
+                    }
+                    
+                    const bY2 = bY - 6;
+                    svgHtml += `<line x1="${startX}" y1="${bY2}" x2="${endX}" y2="${bY2}" stroke="#0f172a" stroke-width="3"/>`;
+                    i = j;
+                } else {
+                    i++;
+                }
+            }
+        });
+
+        // --- RENDER TUPLET BRACKETS ---
+        const isTuplet = (dur) => {
+            return Math.abs(dur - 1/3) < 0.01 || Math.abs(dur - 2/3) < 0.01 || Math.abs(dur - 1/6) < 0.01;
+        };
+
+        let tupletBrackets = [];
+        let currentTuplet = null;
+
+        allComps.forEach(comp => {
+            if (isTuplet(comp.dur)) {
+                if (!currentTuplet) {
+                    currentTuplet = { comps: [], startBeat: comp.beat, sumDur: 0 };
+                }
+                currentTuplet.comps.push(comp);
+                currentTuplet.sumDur += comp.dur;
+
+                if (Math.abs(currentTuplet.sumDur - 1) < 0.01 && !currentTuplet.comps.every(c => Math.abs(c.dur - 2/3) < 0.01)) {
+                    tupletBrackets.push(currentTuplet);
+                    currentTuplet = null;
+                } else if (Math.abs(currentTuplet.sumDur - 2) < 0.01) {
+                    tupletBrackets.push(currentTuplet);
+                    currentTuplet = null;
+                } else if (Math.abs(currentTuplet.sumDur - 0.5) < 0.01 && currentTuplet.comps.every(c => Math.abs(c.dur - 1/6) < 0.01)) {
+                    tupletBrackets.push(currentTuplet);
+                    currentTuplet = null;
+                }
+            } else {
+                if (currentTuplet) {
+                    tupletBrackets.push(currentTuplet);
+                    currentTuplet = null;
+                }
+            }
+        });
+        if (currentTuplet) tupletBrackets.push(currentTuplet);
+
+        tupletBrackets.forEach(bracket => {
+            if (bracket.comps.length < 2) return;
+
+            let smallestDur = Math.min(...bracket.comps.map(c => c.dur));
+            let sumDur = bracket.comps.reduce((acc, c) => acc + c.dur, 0);
+            let num = 3;
+            if (Math.abs(smallestDur - 1/6) < 0.01 && Math.abs(sumDur - 1) < 0.01) num = 6;
+
+            const linesMap = {};
+            bracket.comps.forEach(c => {
+                const pos = c.pos;
+                if (!linesMap[pos.lineIndex]) linesMap[pos.lineIndex] = [];
+                linesMap[pos.lineIndex].push({ comp: c, pos });
+            });
+
+            Object.keys(linesMap).forEach(lIdx => {
+                const lineComps = linesMap[lIdx];
+                if (lineComps.length < 2) return;
+
+                const firstPos = lineComps[0].pos;
+                const lastPos = lineComps[lineComps.length - 1].pos;
+
+                const startX = firstPos.x;
+                const endX = lastPos.x;
+                const midX = (startX + endX) / 2;
+
+                if (drawStaff) {
+                    let minY = firstPos.yOffset + 40; 
+                    lineComps.forEach(lc => {
+                        if (!lc.comp.isRest) {
+                            let yPos = lc.comp.isBeamedStaff ? lc.comp.stemY2Staff : lc.comp.staffY;
+                            if (!lc.comp.stemDownStaff && lc.comp.stemY2Staff) yPos = lc.comp.stemY2Staff; 
+                            if (yPos !== undefined && yPos < minY) minY = yPos;
+                        }
+                    });
+                    lineComps.forEach(lc => {
+                         if (!lc.comp.isRest && !lc.comp.stemDownStaff && !lc.comp.isBeamedStaff && lc.comp.staffY) {
+                             if (lc.comp.staffY - 30 < minY) minY = lc.comp.staffY - 30;
+                         }
+                    });
+                    const y = minY - 15;
+                    svgHtml += `<path d="M${startX} ${y+5} L${startX} ${y} L${midX - 8} ${y}" fill="none" stroke="#64748b" stroke-width="1.5"/>`;
+                    svgHtml += `<path d="M${midX + 8} ${y} L${endX} ${y} L${endX} ${y+5}" fill="none" stroke="#64748b" stroke-width="1.5"/>`;
+                    svgHtml += `<text x="${midX}" y="${y + 4}" font-family="sans-serif" font-size="12" font-weight="bold" fill="#64748b" text-anchor="middle">${num}</text>`;
+                } else if (drawTabs) {
+                    const y = firstPos.yOffset + tabYOffset - 15;
+                    svgHtml += `<path d="M${startX} ${y+5} L${startX} ${y} L${midX - 8} ${y}" fill="none" stroke="#64748b" stroke-width="1.5"/>`;
+                    svgHtml += `<path d="M${midX + 8} ${y} L${endX} ${y} L${endX} ${y+5}" fill="none" stroke="#64748b" stroke-width="1.5"/>`;
+                    svgHtml += `<text x="${midX}" y="${y + 4}" font-family="sans-serif" font-size="12" font-weight="bold" fill="#64748b" text-anchor="middle">${num}</text>`;
+                }
             });
         });
 

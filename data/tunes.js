@@ -5,8 +5,9 @@
  * Chords format: Absolute root note + chord type quality string
  */
 export const jazzStandards = [
-    "autumn-leaves",
-    "blue-bossa"
+    // "autumn-leaves",
+    // "blue-bossa",
+    "misty"
 ];
 
 // Helper variables for transpositions
@@ -16,6 +17,15 @@ export const KEYS = [
     { name: "F#", shift: 6 }, { name: "G", shift: 7 }, { name: "G#", shift: 8 },
     { name: "A", shift: 9 }, { name: "A#", shift: 10 }, { name: "B", shift: 11 }
 ];
+
+// Helper to parse string representation of note duration, e.g., "1", "0.5", "1/3", "2/3"
+function parseDuration(str) {
+    if (str.includes('/')) {
+        const [num, den] = str.split('/');
+        return parseFloat(num) / parseFloat(den);
+    }
+    return parseFloat(str);
+}
 
 // Helper to convert simple text notation into melody arrays
 // Format: "NoteOctave:Duration" -> e.g., "C4:1 D4:0.5 Eb4:1 | G4:5"
@@ -88,15 +98,16 @@ export function parseMelodyString(melodyStr, keyName = "C") {
             continue;
         }
 
-        // Handle bare numbers as rest durations (e.g. "1", "0.5")
-        if (!isNaN(token)) {
-            const duration = parseFloat(token);
+        // Handle bare numbers and fractions as rest durations (e.g. "1", "0.5", "1/3")
+        if (!isNaN(token) || /^\d+(\.\d+)?(\/\d+(\.\d+)?)?$/.test(token)) {
+            const duration = parseDuration(token);
             rawElements.push({ isRest: true, duration: duration, visualBeat });
             visualBeat += duration;
             continue;
         }
 
         const [notePartRaw, durStrPart] = token.split(':');
+        if (!durStrPart) continue;
         let [durPart, strPart] = durStrPart.split('_');
         if (!notePartRaw || !durPart) continue;
 
@@ -117,7 +128,7 @@ export function parseMelodyString(melodyStr, keyName = "C") {
             notePart = notePart.substring(1);
         }
 
-        const duration = parseFloat(durPart);
+        const duration = parseDuration(durPart);
 
         if (notePart.toUpperCase() === 'R') {
             rawElements.push({ isRest: true, duration: duration, visualBeat });
@@ -199,7 +210,7 @@ export function parseChordsString(chordStr) {
         const [rootPart, typePart, durPart] = token.split(':');
         if (!rootPart || !typePart || !durPart) continue;
 
-        const duration = parseFloat(durPart);
+        const duration = parseDuration(durPart);
 
         if (rootPart.toUpperCase() === 'NC') {
             rawElements.push({ isRest: true, duration, visualBeat });

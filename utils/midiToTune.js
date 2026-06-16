@@ -2,9 +2,47 @@ const fs = require('fs');
 const path = require('path');
 const { Midi } = require('@tonejs/midi');
 
-// Helper to round a number to 3 decimal places
-function round(value) {
-    return Math.round(value * 1000) / 1000;
+// Helper to quantize to nearest 16th, 8th-triplet, or 16th-triplet
+function quantize(value) {
+    const sixteenths = Math.round(value * 4) / 4;
+    const triplets = Math.round(value * 3) / 3;
+    const sixteenthTriplets = Math.round(value * 6) / 6;
+
+    const err16 = Math.abs(value - sixteenths);
+    const err8t = Math.abs(value - triplets);
+    const err16t = Math.abs(value - sixteenthTriplets);
+
+    let best = sixteenths;
+    let minErr = err16;
+
+    if (err8t < minErr - 0.01) {
+        best = triplets;
+        minErr = err8t;
+    }
+    if (err16t < minErr - 0.01) {
+        best = sixteenthTriplets;
+    }
+    return best;
+}
+
+function formatDuration(value) {
+    // First check standard divisions (0.25, 0.5, 0.75, 1, etc.)
+    const diff4 = Math.abs(value * 4 - Math.round(value * 4));
+    if (diff4 < 0.01) {
+        return (Math.round(value * 4) / 4).toString();
+    }
+
+    // Then handle tuplets (1/3, 2/3, 1/6, 5/6, etc.)
+    const diff6 = Math.abs(value * 6 - Math.round(value * 6));
+    if (diff6 < 0.01) {
+        const num = Math.round(value * 6);
+        // Simplify 2/6 to 1/3, 4/6 to 2/3
+        if (num % 2 === 0) {
+            return `${num / 2}/3`;
+        }
+        return `${num}/6`;
+    }
+    return (Math.round(value * 1000) / 1000).toString();
 }
 
 // Helper to convert MIDI number to note name (e.g., 60 -> C4)
@@ -61,7 +99,12 @@ function convertMidiToTune(midiFilePath, tuneId) {
 
     // Extract basic header information
     const tempo = midi.header.tempos.length > 0 ? Math.round(midi.header.tempos[0].bpm) : 120;
-    const timeSig = midi.header.timeSignatures.length > 0 ? midi.header.timeSignatures[0].timeSignature : [4, 4];
+    let timeSig = [4, 4];
+    if (midi.header.timeSignatures.length > 0) {
+        const ts = midi.header.timeSignatures[0].timeSignature;
+        // Trust time signature only if denominator is 4 (e.g. 3/4, 4/4, 5/4), else default to 4/4
+        if (ts[1] === 4) timeSig = ts;
+    }
     const ppq = midi.header.ppq;
 
     // Find the first track that actually contains notes to use as the melody
@@ -86,33 +129,39 @@ function convertMidiToTune(midiFilePath, tuneId) {
     let melodyString = "";
     let currentBeat = 0;
     let measureBeats = 0;
-    const beatsPerBar = timeSig[0] * (4 / timeSig[1]); // Typically 4 for 4/4
+    const beatsPerBar = timeSig[0]; // Typically 4 for 4/4
 
     // --- MELODY PARSING ---
     melodyTrack.notes.forEach(note => {
         // Convert MIDI ticks to quarter-note beats
-        const startBeat = note.ticks / ppq;
-        const durationBeats = note.durationTicks / ppq;
+        let startBeat = quantize(note.ticks / ppq);
+        let durationBeats = quantize(note.durationTicks / ppq);
+        if (durationBeats === 0) durationBeats = 0.5; // Ensure at least 0.5 duration
+
+        // Prevent overlapping backwards if MIDI is messy
+        if (startBeat < currentBeat) {
+            startBeat = currentBeat;
+        }
 
         // Handle Rests (gaps between notes)
-        if (startBeat > currentBeat) {
+        if (startBeat > currentBeat + 0.01) {
             const restBeats = startBeat - currentBeat;
-            // Round to 3 decimals to prevent annoying floating point artifacts
-            if (round(restBeats) > 0) {
-                melodyString += `${round(restBeats)} `;
-                measureBeats += restBeats;
+            melodyString += `${formatDuration(restBeats)} `;
+            measureBeats += restBeats;
+            if (measureBeats >= beatsPerBar) {
+                melodyString += `\n        `;
+                measureBeats %= beatsPerBar;
             }
         }
 
         // Format note (e.g. C#4:1.5)
-        const roundedDuration = round(durationBeats);
-        melodyString += `${note.name}:${roundedDuration} `;
-        measureBeats += roundedDuration;
+        melodyString += `${note.name}:${formatDuration(durationBeats)} `;
+        measureBeats += durationBeats;
 
         // Formatting: insert a barline and newline roughly every measure for readability
         if (measureBeats >= beatsPerBar) {
-            melodyString += `| \n        `;
-            measureBeats = measureBeats % beatsPerBar;
+            melodyString += `\n        `;
+            measureBeats %= beatsPerBar;
         }
 
         currentBeat = startBeat + durationBeats;
@@ -150,33 +199,38 @@ function convertMidiToTune(midiFilePath, tuneId) {
             const chord = detectChord(pitches);
 
             if (chord) {
-                const startBeat = tick / ppq;
+                let startBeat = quantize(tick / ppq);
+
+                if (startBeat < lastChordBeat) {
+                    startBeat = lastChordBeat;
+                }
 
                 // If there's a gap, insert a rest (NC - No Chord)
                 if (startBeat > lastChordBeat) {
                     const restDuration = startBeat - lastChordBeat;
-                    if (round(restDuration) > 0) {
-                        chordsString += `NC:-:${round(restDuration)} `;
-                        measureBeatsChords += restDuration;
+                    chordsString += `NC:-:${formatDuration(restDuration)} `;
+                    measureBeatsChords += restDuration;
+                    if (measureBeatsChords >= beatsPerBar) {
+                        chordsString += `\n        `;
+                        measureBeatsChords %= beatsPerBar;
                     }
                 }
 
                 // Use the start of the next chord to determine duration.
                 // For the last chord, use its own average note duration as a fallback.
                 const avgNoteDuration = notes.reduce((sum, n) => sum + n.durationTicks, 0) / notes.length;
-                const endBeat = nextTick ? nextTick / ppq : startBeat + (avgNoteDuration / ppq);
-                const duration = endBeat - startBeat;
+                let endBeat = quantize(nextTick ? nextTick / ppq : startBeat + (avgNoteDuration / ppq));
+                let duration = endBeat - startBeat;
+                if (duration <= 0) duration = 0.5;
 
-                if (round(duration) > 0) {
-                    const rootName = midiToNoteName(chord.root);
-                    chordsString += `${rootName}:${chord.type}:${round(duration)} `;
-                    measureBeatsChords += duration;
-                    lastChordBeat = startBeat + duration;
-                }
+                const rootName = midiToNoteName(chord.root);
+                chordsString += `${rootName}:${chord.type}:${formatDuration(duration)} `;
+                measureBeatsChords += duration;
+                lastChordBeat = startBeat + duration;
 
                 if (measureBeatsChords >= beatsPerBar) {
-                    chordsString += `| \n        `;
-                    measureBeatsChords = measureBeatsChords % beatsPerBar;
+                    chordsString += `\n        `;
+                    measureBeatsChords %= beatsPerBar;
                 }
             }
         }
@@ -190,12 +244,12 @@ function convertMidiToTune(midiFilePath, tuneId) {
     // Create a generic Title from the tune ID
     const title = tuneId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
-    const outputCode = `import { parseMelodyString, parseChordsString } from './tunes.js';\n\nconst originalKey = "${detectedKey}"; // Auto-detected from MIDI\n\nexport const tune = {\n    id: "${tuneId}",\n    title: "${title}",\n    originalKey: originalKey,\n    timeSignature: [${timeSig[0]}, ${timeSig[1]}],\n    anacrouse: 0, // Update manually if the tune has a pickup measure\n    originalTempo: ${tempo},\n    visualTranspose: 0,\n\n    // Generated from MIDI\n    melody: parseMelodyString(\`\n        ${melodyString.trim()}\n    \`, originalKey),\n\n    // Chords are automatically detected from other MIDI tracks.\n    // This is a best-effort guess and may require manual correction.\n    chords: parseChordsString(\`\n        ${chordsString.trim()}\n    \`),\n\n    youtube: ""\n};\n`;
+    const outputCode = `import { parseMelodyString, parseChordsString } from '../tunes.js';\n\nconst originalKey = "${detectedKey}";\n\nexport const tune = {\n    id: "${tuneId}",\n    title: "${title}",\n    originalKey: originalKey,\n    timeSignature: [${timeSig[0]}, ${timeSig[1]}],\n    anacrouse: 0,\n    originalTempo: ${tempo},\n    visualTranspose: 0,\n\n\n    melody: parseMelodyString(\`\n        ${melodyString.trim()}\n    \`, originalKey),\n\n\n    chords: parseChordsString(\`\n        ${chordsString.trim()}\n    \`),\n\n    youtube: ""\n};\n`;
 
     const outputPath = path.join(__dirname, '../data/tuneFiles', `${tuneId}.js`);
     fs.writeFileSync(outputPath, outputCode);
-    console.log(`✅ Successfully generated tune file: ${outputPath}`);
-    console.log(`⚠️ Don't forget to add "${tuneId}" to the jazzStandards array in data/tunes.js!`);
+    console.log(`Successfully generated tune file: ${outputPath}`);
+    console.log(`Don't forget to add "${tuneId}" to the jazzStandards array in data/tunes.js!`);
 }
 
 const args = process.argv.slice(2);
