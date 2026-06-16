@@ -16,7 +16,8 @@ export class NotationViewer extends HTMLElement {
             timeSignature: [4, 4],
             anacrouse: 0,
             displayMode: 'both',
-            visualTranspose: 0
+            visualTranspose: 0,
+            zoom: 1
         };
     }
 
@@ -29,7 +30,8 @@ export class NotationViewer extends HTMLElement {
     }
 
     updateData(title, key, melody, chords, revealMelody = 'empty', revealChords = false, timeSignature = [4, 4], anacrouse = 0, displayMode = 'both', visualTranspose = 0) {
-        this.state = { title, key, melody, chords, revealMelody, revealChords, timeSignature, anacrouse, displayMode, visualTranspose };
+        const currentZoom = this.state.zoom || 1;
+        this.state = { title, key, melody, chords, revealMelody, revealChords, timeSignature, anacrouse, displayMode, visualTranspose, zoom: currentZoom };
         this.render();
     }
 
@@ -118,9 +120,22 @@ export class NotationViewer extends HTMLElement {
             const scale = svg.clientWidth / 950; // The viewBox width is fixed at 950
             const systemTopPx = yOffset * scale;
             const systemBottomPx = (yOffset + this.layoutSystemHeight) * scale;
+            const playheadXPx = x * scale;
+
+            let scrollOpts = {};
+            let needScroll = false;
 
             if (systemTopPx < wrapper.scrollTop || systemBottomPx > wrapper.scrollTop + wrapper.clientHeight) {
-                wrapper.scrollTo({ top: systemTopPx, behavior: 'smooth' });
+                scrollOpts.top = systemTopPx;
+                needScroll = true;
+            }
+            if (playheadXPx < wrapper.scrollLeft || playheadXPx > wrapper.scrollLeft + wrapper.clientWidth) {
+                scrollOpts.left = Math.max(0, playheadXPx - (wrapper.clientWidth / 2));
+                needScroll = true;
+            }
+            if (needScroll) {
+                scrollOpts.behavior = 'smooth';
+                wrapper.scrollTo(scrollOpts);
             }
         }
     }
@@ -376,7 +391,7 @@ export class NotationViewer extends HTMLElement {
         const height = totalLines * SYSTEM_HEIGHT + TITLE_HEIGHT;
 
         let svgHtml = `
-            <svg viewBox="0 0 ${WIDTH} ${height}" width="100%" xmlns="http://www.w3.org/2000/svg" style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; display: block; cursor: pointer;">
+            <svg viewBox="0 0 ${WIDTH} ${height}" width="${(this.state.zoom || 1) * 100}%" xmlns="http://www.w3.org/2000/svg" style="background:#fff; border:1px solid #cbd5e1; border-radius:4px; display: block; cursor: pointer;">
                 <style>
                     .staff-line { stroke: #64748b; stroke-width: 1; }
                     .clef-text { font-family: serif; font-size: 42px; font-weight: bold; fill: #1e293b; }
@@ -1024,16 +1039,44 @@ export class NotationViewer extends HTMLElement {
     }
 
     render() {
-        this.shadowRoot.innerHTML = `
-            <style>
-                :host { display: block; width: 100%; height: 100%; min-height: 0; }
-                .score-wrapper { width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 10px; box-sizing: border-box; }
-                svg { margin: 0 auto; display: block; user-select: none; -webkit-user-select: none; }
-            </style>
-            <div class="score-wrapper">
-                ${this.generateSVG()}
-            </div>
-        `;
+        if (!this.shadowRoot.querySelector('.score-wrapper')) {
+            this.shadowRoot.innerHTML = `
+                <style>
+                    :host { display: block; width: 100%; height: 100%; min-height: 0; position: relative; }
+                    .score-wrapper { width: 100%; height: 100%; overflow: auto; padding: 10px; box-sizing: border-box; }
+                    .zoom-controls { position: absolute; bottom: 20px; right: -10px; background: rgba(255, 255, 255, 0.95); padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 10px; z-index: 10; font-family: sans-serif; font-size: 13px; color: #1e293b; }
+                    .zoom-controls input[type="range"] { cursor: pointer; width: 125px; margin: 0; }
+                    svg { margin: 0 auto; display: block; user-select: none; -webkit-user-select: none; }
+                </style>
+                <div class="zoom-controls">
+                    <label id="reset-zoom-btn" style="cursor: pointer;" title="Reset to 100%">🔍 Zoom</label>
+                    <input type="range" id="zoom-slider" min="0.2" max="3.0" step="0.05" value="${this.state.zoom || 1}">
+                    <span id="zoom-display">${Math.round((this.state.zoom || 1) * 100)}%</span>
+                </div>
+                <div class="score-wrapper"></div>
+            `;
+
+            const slider = this.shadowRoot.getElementById('zoom-slider');
+            const display = this.shadowRoot.getElementById('zoom-display');
+            slider.addEventListener('input', (e) => {
+                this.state.zoom = parseFloat(e.target.value);
+                display.textContent = Math.round(this.state.zoom * 100) + '%';
+                const svg = this.shadowRoot.querySelector('svg');
+                if (svg) svg.setAttribute('width', `${this.state.zoom * 100}%`);
+            });
+
+            const resetBtn = this.shadowRoot.getElementById('reset-zoom-btn');
+            resetBtn.addEventListener('click', () => {
+                this.state.zoom = 1;
+                slider.value = 1;
+                display.textContent = '100%';
+                const svg = this.shadowRoot.querySelector('svg');
+                if (svg) svg.setAttribute('width', '100%');
+            });
+        }
+
+        const wrapper = this.shadowRoot.querySelector('.score-wrapper');
+        wrapper.innerHTML = this.generateSVG();
 
         const svg = this.shadowRoot.querySelector('svg');
         if (svg) {
