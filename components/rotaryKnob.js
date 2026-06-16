@@ -37,7 +37,7 @@ export class RotaryKnob extends HTMLElement {
         this.shadowRoot.innerHTML = `
             <style>
                 :host { display: inline-block; width: 44px; height: 44px; cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: none; }
-                .knob-container { width: 100%; height: 100%; border-radius: 50%; background: #cbd5e1; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2), 0 2px 4px rgba(255,255,255,0.5); position: relative; display: flex; justify-content: center; align-items: center; }
+                .knob-container { width: 100%; height: 100%; border-radius: 50%; background-color: #cbd5e1; background-image: conic-gradient(from 225deg, #38bdf8 0deg, #38bdf8 var(--fill-angle, 270deg), transparent var(--fill-angle, 270deg)); box-shadow: inset 0 2px 4px rgba(0,0,0,0.2), 0 2px 4px rgba(255,255,255,0.5); position: relative; display: flex; justify-content: center; align-items: center; }
                 .knob-dial { width: 75%; height: 75%; border-radius: 50%; background: #1e293b; box-shadow: 0 2px 5px rgba(0,0,0,0.4); position: absolute; transform: rotate(0deg); transition: transform 0.05s ease-out; }
                 .knob-indicator { position: absolute; width: 4px; height: 35%; background: #38bdf8; top: 12%; left: calc(50% - 2px); border-radius: 2px; }
             </style>
@@ -60,6 +60,7 @@ export class RotaryKnob extends HTMLElement {
         // Map 0 -> -135deg, 1 -> 135deg (270 degrees total spin)
         const angle = -135 + (this._value * 270);
         this.dial.style.transform = `rotate(${angle}deg)`;
+        this.style.setProperty('--fill-angle', `${this._value * 270}deg`);
     }
 
     onPointerDown(e) {
