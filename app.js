@@ -31,8 +31,7 @@ class AppController {
         this.keyResetBtn = document.getElementById('key-reset-btn');
 
         // Buttons
-        this.playBothBtn = document.getElementById('play-both-btn');
-        this.playMelodyBtn = document.getElementById('play-melody-btn');
+        this.playBtn = document.getElementById('play-btn');
         this.toggleChordsBtn = document.getElementById('toggle-chords-btn');
         this.revealFirstBtn = document.getElementById('reveal-first-btn');
         this.revealMelodyBtn = document.getElementById('reveal-melody-btn');
@@ -64,31 +63,15 @@ class AppController {
     }
 
     initEventListeners() {
-        this.playBothBtn.addEventListener('click', () => {
-            if (this.activePlayback === 'both') {
+        this.playBtn.addEventListener('click', () => {
+            if (this.activePlayback === 'playing') {
                 this.stopPlayback();
             } else {
                 this.stopPlayback();
                 if (this.currentTransposedTune) {
-                    this.activePlayback = 'both';
-                    this.playBothBtn.textContent = "Stop Both";
+                    this.activePlayback = 'playing';
+                    this.playBtn.textContent = "Stop";
                     const duration = audioEngine.playBoth(this.currentTransposedTune.melody, this.currentTransposedTune.chords, 0);
-                    const totalBeats = duration / audioEngine.secPerBeat;
-                    this.startPlayhead(0, totalBeats, false);
-                    this.playbackTimeout = setTimeout(() => this.stopPlayback(), duration * 1000);
-                }
-            }
-        });
-
-        this.playMelodyBtn.addEventListener('click', () => {
-            if (this.activePlayback === 'melody') {
-                this.stopPlayback();
-            } else {
-                this.stopPlayback();
-                if (this.currentTransposedTune) {
-                    this.activePlayback = 'melody';
-                    this.playMelodyBtn.textContent = "Stop Melody";
-                    const duration = audioEngine.playMelody(this.currentTransposedTune.melody, 0);
                     const totalBeats = duration / audioEngine.secPerBeat;
                     this.startPlayhead(0, totalBeats, false);
                     this.playbackTimeout = setTimeout(() => this.stopPlayback(), duration * 1000);
@@ -177,6 +160,18 @@ class AppController {
         document.getElementById('melody-volume').addEventListener('input', (e) => audioEngine.setMelodyVolume(parseFloat(e.target.value)));
         document.getElementById('chord-volume').addEventListener('input', (e) => audioEngine.setChordVolume(parseFloat(e.target.value)));
         document.getElementById('click-volume').addEventListener('input', (e) => audioEngine.setClickVolume(parseFloat(e.target.value)));
+
+        // Global keyboard shortcuts
+        window.addEventListener('keydown', (e) => {
+            // Ignore if user is typing in an input
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.isContentEditable) {
+                return;
+            }
+            if (e.code === 'Space') {
+                e.preventDefault();
+                this.playBtn.click();
+            }
+        });
     }
 
     async initModalList() {
@@ -290,8 +285,7 @@ class AppController {
             this.notationDisplay.setPlayhead(null);
         }
         this.activePlayback = null;
-        this.playBothBtn.textContent = "Play Both";
-        this.playMelodyBtn.textContent = "Play Melody";
+        this.playBtn.textContent = "Play";
         this.toggleChordsBtn.textContent = "Loop Chords: OFF";
         this.toggleChordsBtn.classList.remove('primary');
     }
@@ -299,21 +293,14 @@ class AppController {
     seekAndPlay(startBeat) {
         if (!this.currentTransposedTune) return;
 
-        const mode = this.activePlayback || 'both'; // Default to playing both if playback is fully stopped
+        const mode = this.activePlayback || 'playing'; // Default to playing if playback is fully stopped
 
         this.stopPlayback();
 
-        if (mode === 'both') {
-            this.activePlayback = 'both';
-            this.playBothBtn.textContent = "Stop Both";
+        if (mode === 'playing') {
+            this.activePlayback = 'playing';
+            this.playBtn.textContent = "Stop";
             const duration = audioEngine.playBoth(this.currentTransposedTune.melody, this.currentTransposedTune.chords, startBeat);
-            const totalBeats = (duration / audioEngine.secPerBeat) + startBeat;
-            this.startPlayhead(startBeat, totalBeats, false);
-            this.playbackTimeout = setTimeout(() => this.stopPlayback(), duration * 1000);
-        } else if (mode === 'melody') {
-            this.activePlayback = 'melody';
-            this.playMelodyBtn.textContent = "Stop Melody";
-            const duration = audioEngine.playMelody(this.currentTransposedTune.melody, startBeat);
             const totalBeats = (duration / audioEngine.secPerBeat) + startBeat;
             this.startPlayhead(startBeat, totalBeats, false);
             this.playbackTimeout = setTimeout(() => this.stopPlayback(), duration * 1000);
