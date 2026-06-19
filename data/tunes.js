@@ -1,15 +1,6 @@
-/**
- * Jazz Standards Database
- * * Note format: MIDI Numbers (e.g., 60 = Middle C, 61 = C#, 62 = D...)
- * Duration format: Relative lengths (1 = Quarter note, 2 = Half note, 4 = Whole note, 0.5 = Eighth note)
- * Chords format: Absolute root note + chord type quality string
- */
-export const jazzStandards = [
-    "autumn-leaves",
-    "blue-bossa",
-    "misty"
-];
+import { tunesList } from './tunesList.js';
 
+export const jazzStandards = tunesList.filter(t => !t.startsWith("!"));
 // Helper variables for transpositions
 export const KEYS = [
     { name: "C", shift: 0 }, { name: "C#", shift: 1 }, { name: "D", shift: 2 },
