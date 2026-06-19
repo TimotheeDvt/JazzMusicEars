@@ -4,6 +4,6 @@ export const tunesList = [
     "misty",
     "take-five",
     "!fly-me-to-the-moon",
-    "!mr-pc",
+    "mr-pc",
     "!all-of-me",
 ];
