@@ -39,6 +39,11 @@ class AppController {
         this.revealMelodyBtn = document.getElementById('reveal-melody-btn');
         this.revealChordsBtn = document.getElementById('reveal-chords-btn');
         this.nextTuneBtn = document.getElementById('next-tune-btn');
+        this.closeModalBtn = document.getElementById('close-modal-btn');
+        this.selectedTunesCountSpan = document.getElementById('selected-tunes-count');
+
+        // Youtube Link Container
+        this.ytContainer = document.getElementById('youtube-link-container');
         this.evaluationCard = document.getElementById('evaluation-card');
         this.manageTunesBtn = document.getElementById('manage-tunes-btn');
 
@@ -62,6 +67,7 @@ class AppController {
         this.initEventListeners();
         this.initModalList();
         this.loadNextTune();
+        this.updateSelectedTunesCount();
     }
 
     initEventListeners() {
@@ -192,6 +198,12 @@ class AppController {
     updateSelectedTunesFromModal() {
         const checkedInputs = this.tuneCheckboxList.querySelectorAll('input:checked');
         this.selectedTuneIds = Array.from(checkedInputs).map(input => input.value);
+        this.updateSelectedTunesCount();
+    }
+
+    updateSelectedTunesCount() {
+        const count = this.selectedTuneIds.length;
+        this.selectedTunesCountSpan.textContent = `(${count} selected)`;
     }
 
     transposeTune(tune, targetKey) {
