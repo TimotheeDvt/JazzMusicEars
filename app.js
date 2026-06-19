@@ -162,6 +162,7 @@ class AppController {
         document.getElementById('melody-volume').addEventListener('input', (e) => audioEngine.setMelodyVolume(parseFloat(e.target.value)));
         document.getElementById('chord-volume').addEventListener('input', (e) => audioEngine.setChordVolume(parseFloat(e.target.value)));
         document.getElementById('click-volume').addEventListener('input', (e) => audioEngine.setClickVolume(parseFloat(e.target.value)));
+        audioEngine.setClickVolume(0)
 
         // Global keyboard shortcuts
         window.addEventListener('keydown', (e) => {

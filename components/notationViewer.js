@@ -168,8 +168,8 @@ export class NotationViewer extends HTMLElement {
         const isMinor = keyName.toLowerCase().includes('m') || keyName.toLowerCase().includes('min');
         let root = keyName.replace(/min|m/i, '');
 
-        // Use a consistent mapping for all 12 pitch classes, preferring sharps for consistency in naming
-        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const sharpNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const flatNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
         const noteNameToIndex = {
             'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5,
             'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
@@ -178,16 +178,22 @@ export class NotationViewer extends HTMLElement {
         let rootIndex = noteNameToIndex[root];
 
         if (rootIndex === undefined) {
-            // console.warn(`Could not determine root index for key: ${keyName}. Returning original key name.`);
             return keyName; // Fallback for unhandled or invalid key names
         }
 
         let newRootIndex = (rootIndex + semitoneShift) % 12;
         if (newRootIndex < 0) {
-            newRootIndex += 12; // Ensure positive index
+            newRootIndex += 12;
         }
 
-        let newRootName = noteNames[newRootIndex];
+        // Prefer flats when the resulting key is conventionally a flat key.
+        // Flat keys (major): F Bb Eb Ab Db Gb — pitch classes 5,10,3,8,1,6
+        // Flat keys (minor): Dm Gm Cm Fm Bbm Ebm — pitch classes 2,7,0,5,10,3
+        const flatMajorPCs = new Set([5, 10, 3, 8, 1, 6]);
+        const flatMinorPCs = new Set([2, 7, 0, 5, 10, 3]);
+        const useFlat = isMinor ? flatMinorPCs.has(newRootIndex) : flatMajorPCs.has(newRootIndex);
+
+        const newRootName = useFlat ? flatNames[newRootIndex] : sharpNames[newRootIndex];
 
         // Re-append minor suffix if applicable
         return newRootName + (isMinor ? 'm' : '');
@@ -230,9 +236,10 @@ export class NotationViewer extends HTMLElement {
     // Convert MIDI pitch to Staff Y position, including accidental tracking
     midiToStaffInfo(midi, keyName) {
         // Identify keys that favor flat notation
-        const flatKeys = ["F", "A#", "Bb", "D#", "Eb", "G#", "Ab", "C#", "Db", "Gb", "Dm", "Gm", "Cm", "Fm", "A#m", "Bbm", "D#m", "Ebm"];
-        const isFlat = flatKeys.some(k => keyName === k || keyName.startsWith(k + "m")) || (keyName && keyName.includes('b'));
-
+        const flatStaffRoots = new Set(["F", "Bb", "Eb", "Ab", "Db", "Gb", "Cb", "A#", "D#", "G#", "C#"]);
+        // Note: C#/D#/G#/A# are included because the midiToStaffInfo uses flat spellings for those keys
+        const staffKeyRoot = keyName.replace(/m.*$/, '');
+        const isFlat = flatStaffRoots.has(staffKeyRoot) || staffKeyRoot.includes('b');
         const flatMappings = [
             { s: 0, a: '' }, { s: 1, a: 'b' }, { s: 1, a: '' }, { s: 2, a: 'b' },
             { s: 2, a: '' }, { s: 3, a: '' }, { s: 4, a: 'b' }, { s: 4, a: '' },
@@ -529,8 +536,14 @@ export class NotationViewer extends HTMLElement {
         }
 
         // --- RENDER REVEALED CHORDS ---
-        const flatKeysForChords = ["F", "Bb", "Eb", "Ab", "Db", "Gb", "Dm", "Gm", "Cm", "Fm", "Bbm", "Ebm"];
-        const useFlats = flatKeysForChords.some(k => transposedKey === k || transposedKey.startsWith(k + "m")) || transposedKey.includes('b');
+        // Determine flat vs sharp using pitch class, so enharmonics (e.g. D#m = Ebm) are handled correctly
+        const _chordKeyRoot = transposedKey.replace(/m.*$/, '');
+        const _isMinorKey = transposedKey.toLowerCase().replace(_chordKeyRoot.toLowerCase(), '').includes('m');
+        const _pcMap = { 'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11 };
+        const _keyPC = _pcMap[_chordKeyRoot] ?? 0;
+        const _flatMajorPCs = new Set([5, 10, 3, 8, 1, 6]); // F Bb Eb Ab Db Gb
+        const _flatMinorPCs = new Set([2, 7, 0, 5, 10, 3]); // Dm Gm Cm Fm Bbm Ebm
+        const useFlats = _isMinorKey ? _flatMinorPCs.has(_keyPC) : _flatMajorPCs.has(_keyPC);
         const sharpRoots = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
         const flatRoots = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
         const chordRoots = useFlats ? flatRoots : sharpRoots;
