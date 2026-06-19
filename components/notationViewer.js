@@ -160,28 +160,44 @@ export class NotationViewer extends HTMLElement {
     }
 
     // Helper to transpose key string up or down by semitones
-    transposeKeyName(keyName, shift) {
-        if (!shift) return keyName;
-        const isMinor = keyName.toLowerCase().endsWith('m') || keyName.toLowerCase().endsWith('min');
+    transposeKeyName(keyName, semitoneShift) {
+        if (semitoneShift === 0) {
+            return keyName;
+        }
+
+        const isMinor = keyName.toLowerCase().includes('m') || keyName.toLowerCase().includes('min');
         let root = keyName.replace(/min|m/i, '');
 
-        const notes = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
-        const rootToIdx = {
+        // Use a consistent mapping for all 12 pitch classes, preferring sharps for consistency in naming
+        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const noteNameToIndex = {
             'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5,
             'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
         };
 
-        let idx = rootToIdx[root];
-        if (idx === undefined) return keyName;
+        let rootIndex = noteNameToIndex[root];
 
-        let newIdx = ((idx + shift) % 12 + 12) % 12;
-        return notes[newIdx] + (isMinor ? 'm' : '');
+        if (rootIndex === undefined) {
+            // console.warn(`Could not determine root index for key: ${keyName}. Returning original key name.`);
+            return keyName; // Fallback for unhandled or invalid key names
+        }
+
+        let newRootIndex = (rootIndex + semitoneShift) % 12;
+        if (newRootIndex < 0) {
+            newRootIndex += 12; // Ensure positive index
+        }
+
+        let newRootName = noteNames[newRootIndex];
+
+        // Re-append minor suffix if applicable
+        return newRootName + (isMinor ? 'm' : '');
     }
 
     // Get standard key signature properties based on scale name
     getKeySignature(keyName) {
-        const sharps = [50, 65, 45, 60, 75, 55, 70]; // F, C, G, D, A, E, B
-        const flats = [70, 55, 75, 60, 80, 65, 85];  // B, E, A, D, G, C, F
+        // Y positions for sharps and flats, relative to staff center (middle line is 70)
+        const sharpsY = { 'F': 50, 'C': 65, 'G': 45, 'D': 60, 'A': 75, 'E': 55, 'B': 70 };
+        const flatsY = { 'B': 70, 'E': 55, 'A': 75, 'D': 60, 'G': 45, 'C': 65, 'F': 50 };
 
         const keyMap = {
             "C": 0, "Am": 0, "G": 1, "Em": 1, "D": 2, "Bm": 2,
@@ -194,14 +210,22 @@ export class NotationViewer extends HTMLElement {
         let sig = keyMap[keyName] || 0;
         let accidentals = [];
 
-        if (sig > 0) {
-            for (let i = 0; i < sig; i++) accidentals.push({ symbol: '♯', y: sharps[i] });
-        } else if (sig < 0) {
-            for (let i = 0; i < Math.abs(sig); i++) accidentals.push({ symbol: '♭', y: flats[i] });
+        if (sig > 0) { // Sharps
+            const sharpsOrder = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+            for (let i = 0; i < sig; i++) {
+                const noteForSharp = sharpsOrder[i];
+                accidentals.push({ symbol: '♯', y: sharpsY[noteForSharp] });
+            }
+        } else if (sig < 0) { // Flats
+            const flatsOrder = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
+            for (let i = 0; i < Math.abs(sig); i++) {
+                const noteForFlat = flatsOrder[i];
+                accidentals.push({ symbol: '♭', y: flatsY[noteForFlat] });
+            }
         }
-
-        return accidentals;
+        return accidentals; // This now correctly returns an ARRAY
     }
+
 
     // Convert MIDI pitch to Staff Y position, including accidental tracking
     midiToStaffInfo(midi, keyName) {
@@ -326,7 +350,7 @@ export class NotationViewer extends HTMLElement {
             let currentNoteBeat = note.visualBeat !== undefined ? note.visualBeat : note.beat;
             let remaining = note.duration;
             let comps = [];
-            [4, 3, 2, 1.5, 1, 0.75, 2/3, 0.5, 1/3, 0.25, 1/6].forEach(val => {
+            [4, 3, 2, 1.5, 1, 0.75, 2 / 3, 0.5, 1 / 3, 0.25, 1 / 6].forEach(val => {
                 while (remaining >= val - 0.001) {
                     comps.push({ dur: val, beat: currentNoteBeat });
                     allEventBeats.add(currentNoteBeat);
@@ -601,7 +625,7 @@ export class NotationViewer extends HTMLElement {
             let avgY = group.reduce((sum, c) => sum + c.staffY, 0) / group.length;
             let stemDown = avgY <= (group[0].pos.yOffset + 70);
             let extremeY = stemDown ? Math.max(...group.map(c => c.staffY)) + 30 : Math.min(...group.map(c => c.staffY)) - 30;
-            
+
             group.forEach(c => {
                 c.isBeamedStaff = true;
                 c.stemDownStaff = stemDown;
@@ -710,9 +734,9 @@ export class NotationViewer extends HTMLElement {
                             svgHtml += `<rect x="${pos.x - 6}" y="${pos.yOffset + 60}" width="12" height="5" fill="#0f172a"/>`;
                         } else if (comp.dur >= 2 - 0.001) {
                             svgHtml += `<rect x="${pos.x - 6}" y="${pos.yOffset + 65}" width="12" height="5" fill="#0f172a"/>`;
-                        } else if (comp.dur >= 2/3 - 0.001) {
+                        } else if (comp.dur >= 2 / 3 - 0.001) {
                             svgHtml += `<path d="M${pos.x - 3} ${pos.yOffset + 55} L${pos.x + 4} ${pos.yOffset + 65} L${pos.x - 2} ${pos.yOffset + 73} C${pos.x + 5} ${pos.yOffset + 73} ${pos.x + 5} ${pos.yOffset + 84} ${pos.x - 2} ${pos.yOffset + 84} C${pos.x - 4} ${pos.yOffset + 84} ${pos.x - 4} ${pos.yOffset + 80} ${pos.x - 1} ${pos.yOffset + 80}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
-                        } else if (comp.dur >= 1/6 - 0.001) {
+                        } else if (comp.dur >= 1 / 6 - 0.001) {
                             svgHtml += `<circle cx="${pos.x - 3}" cy="${pos.yOffset + 64}" r="2" fill="#0f172a"/>`;
                             svgHtml += `<path d="M${pos.x - 3} ${pos.yOffset + 64} Q${pos.x + 5} ${pos.yOffset + 60} ${pos.x + 4} ${pos.yOffset + 70} L${pos.x - 1} ${pos.yOffset + 82}" fill="none" stroke="#0f172a" stroke-width="1.5"/>`;
                         }
@@ -877,25 +901,25 @@ export class NotationViewer extends HTMLElement {
             const stemX1 = first.stemDownStaff ? first.pos.x - 5 : first.pos.x + 5;
             const stemX2 = last.stemDownStaff ? last.pos.x - 5 : last.pos.x + 5;
             const bY = group.beamY;
-            
+
             svgHtml += `<line x1="${stemX1}" y1="${bY}" x2="${stemX2}" y2="${bY}" stroke="#0f172a" stroke-width="3"/>`;
 
             let i = 0;
-            while(i < group.length) {
+            while (i < group.length) {
                 if (group[i].dur <= 0.25 + 0.001) {
                     let j = i;
-                    while(j < group.length && group[j].dur <= 0.25 + 0.001) j++;
-                    
+                    while (j < group.length && group[j].dur <= 0.25 + 0.001) j++;
+
                     let startX = group[i].stemDownStaff ? group[i].pos.x - 5 : group[i].pos.x + 5;
                     let endX;
                     if (j - i > 1) {
-                        endX = group[j-1].stemDownStaff ? group[j-1].pos.x - 5 : group[j-1].pos.x + 5;
+                        endX = group[j - 1].stemDownStaff ? group[j - 1].pos.x - 5 : group[j - 1].pos.x + 5;
                     } else {
                         endX = group[i].stemDownStaff ? group[i].pos.x + 3 : group[i].pos.x - 3;
                         if (i > 0) endX = startX - 8;
                         else endX = startX + 8;
                     }
-                    
+
                     const bY2 = group.stemDownStaff ? bY - 6 : bY + 6;
                     svgHtml += `<line x1="${startX}" y1="${bY2}" x2="${endX}" y2="${bY2}" stroke="#0f172a" stroke-width="3"/>`;
                     i = j;
@@ -915,20 +939,20 @@ export class NotationViewer extends HTMLElement {
             svgHtml += `<line x1="${stemX1}" y1="${bY}" x2="${stemX2}" y2="${bY}" stroke="#0f172a" stroke-width="3"/>`;
 
             let i = 0;
-            while(i < group.length) {
+            while (i < group.length) {
                 if (group[i].dur <= 0.25 + 0.001) {
                     let j = i;
-                    while(j < group.length && group[j].dur <= 0.25 + 0.001) j++;
-                    
+                    while (j < group.length && group[j].dur <= 0.25 + 0.001) j++;
+
                     let startX = group[i].pos.x;
                     let endX;
                     if (j - i > 1) {
-                        endX = group[j-1].pos.x;
+                        endX = group[j - 1].pos.x;
                     } else {
                         if (i > 0) endX = startX - 8;
                         else endX = startX + 8;
                     }
-                    
+
                     const bY2 = bY - 6;
                     svgHtml += `<line x1="${startX}" y1="${bY2}" x2="${endX}" y2="${bY2}" stroke="#0f172a" stroke-width="3"/>`;
                     i = j;
@@ -940,7 +964,7 @@ export class NotationViewer extends HTMLElement {
 
         // --- RENDER TUPLET BRACKETS ---
         const isTuplet = (dur) => {
-            return Math.abs(dur - 1/3) < 0.01 || Math.abs(dur - 2/3) < 0.01 || Math.abs(dur - 1/6) < 0.01;
+            return Math.abs(dur - 1 / 3) < 0.01 || Math.abs(dur - 2 / 3) < 0.01 || Math.abs(dur - 1 / 6) < 0.01;
         };
 
         let tupletBrackets = [];
@@ -954,13 +978,13 @@ export class NotationViewer extends HTMLElement {
                 currentTuplet.comps.push(comp);
                 currentTuplet.sumDur += comp.dur;
 
-                if (Math.abs(currentTuplet.sumDur - 1) < 0.01 && !currentTuplet.comps.every(c => Math.abs(c.dur - 2/3) < 0.01)) {
+                if (Math.abs(currentTuplet.sumDur - 1) < 0.01 && !currentTuplet.comps.every(c => Math.abs(c.dur - 2 / 3) < 0.01)) {
                     tupletBrackets.push(currentTuplet);
                     currentTuplet = null;
                 } else if (Math.abs(currentTuplet.sumDur - 2) < 0.01) {
                     tupletBrackets.push(currentTuplet);
                     currentTuplet = null;
-                } else if (Math.abs(currentTuplet.sumDur - 0.5) < 0.01 && currentTuplet.comps.every(c => Math.abs(c.dur - 1/6) < 0.01)) {
+                } else if (Math.abs(currentTuplet.sumDur - 0.5) < 0.01 && currentTuplet.comps.every(c => Math.abs(c.dur - 1 / 6) < 0.01)) {
                     tupletBrackets.push(currentTuplet);
                     currentTuplet = null;
                 }
@@ -979,7 +1003,7 @@ export class NotationViewer extends HTMLElement {
             let smallestDur = Math.min(...bracket.comps.map(c => c.dur));
             let sumDur = bracket.comps.reduce((acc, c) => acc + c.dur, 0);
             let num = 3;
-            if (Math.abs(smallestDur - 1/6) < 0.01 && Math.abs(sumDur - 1) < 0.01) num = 6;
+            if (Math.abs(smallestDur - 1 / 6) < 0.01 && Math.abs(sumDur - 1) < 0.01) num = 6;
 
             const linesMap = {};
             bracket.comps.forEach(c => {
@@ -1000,27 +1024,27 @@ export class NotationViewer extends HTMLElement {
                 const midX = (startX + endX) / 2;
 
                 if (drawStaff) {
-                    let minY = firstPos.yOffset + 40; 
+                    let minY = firstPos.yOffset + 40;
                     lineComps.forEach(lc => {
                         if (!lc.comp.isRest) {
                             let yPos = lc.comp.isBeamedStaff ? lc.comp.stemY2Staff : lc.comp.staffY;
-                            if (!lc.comp.stemDownStaff && lc.comp.stemY2Staff) yPos = lc.comp.stemY2Staff; 
+                            if (!lc.comp.stemDownStaff && lc.comp.stemY2Staff) yPos = lc.comp.stemY2Staff;
                             if (yPos !== undefined && yPos < minY) minY = yPos;
                         }
                     });
                     lineComps.forEach(lc => {
-                         if (!lc.comp.isRest && !lc.comp.stemDownStaff && !lc.comp.isBeamedStaff && lc.comp.staffY) {
-                             if (lc.comp.staffY - 30 < minY) minY = lc.comp.staffY - 30;
-                         }
+                        if (!lc.comp.isRest && !lc.comp.stemDownStaff && !lc.comp.isBeamedStaff && lc.comp.staffY) {
+                            if (lc.comp.staffY - 30 < minY) minY = lc.comp.staffY - 30;
+                        }
                     });
                     const y = minY - 15;
-                    svgHtml += `<path d="M${startX} ${y+5} L${startX} ${y} L${midX - 8} ${y}" fill="none" stroke="#64748b" stroke-width="1.5"/>`;
-                    svgHtml += `<path d="M${midX + 8} ${y} L${endX} ${y} L${endX} ${y+5}" fill="none" stroke="#64748b" stroke-width="1.5"/>`;
+                    svgHtml += `<path d="M${startX} ${y + 5} L${startX} ${y} L${midX - 8} ${y}" fill="none" stroke="#64748b" stroke-width="1.5"/>`;
+                    svgHtml += `<path d="M${midX + 8} ${y} L${endX} ${y} L${endX} ${y + 5}" fill="none" stroke="#64748b" stroke-width="1.5"/>`;
                     svgHtml += `<text x="${midX}" y="${y + 4}" font-family="sans-serif" font-size="12" font-weight="bold" fill="#64748b" text-anchor="middle">${num}</text>`;
                 } else if (drawTabs) {
                     const y = firstPos.yOffset + tabYOffset - 15;
-                    svgHtml += `<path d="M${startX} ${y+5} L${startX} ${y} L${midX - 8} ${y}" fill="none" stroke="#64748b" stroke-width="1.5"/>`;
-                    svgHtml += `<path d="M${midX + 8} ${y} L${endX} ${y} L${endX} ${y+5}" fill="none" stroke="#64748b" stroke-width="1.5"/>`;
+                    svgHtml += `<path d="M${startX} ${y + 5} L${startX} ${y} L${midX - 8} ${y}" fill="none" stroke="#64748b" stroke-width="1.5"/>`;
+                    svgHtml += `<path d="M${midX + 8} ${y} L${endX} ${y} L${endX} ${y + 5}" fill="none" stroke="#64748b" stroke-width="1.5"/>`;
                     svgHtml += `<text x="${midX}" y="${y + 4}" font-family="sans-serif" font-size="12" font-weight="bold" fill="#64748b" text-anchor="middle">${num}</text>`;
                 }
             });

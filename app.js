@@ -206,36 +206,51 @@ class AppController {
         this.selectedTunesCountSpan.textContent = `(${count} selected)`;
     }
 
+    normalizeKeyRoot(keyStr) {
+        const rootMatch = keyStr.match(/^[A-G][#b]?/i);
+        if (!rootMatch) return 'C'; // Default to C if no root found
+        let root = rootMatch[0].toUpperCase();
+        switch (root) {
+            case 'DB': return 'C#';
+            case 'EB': return 'D#';
+            case 'GB': return 'F#';
+            case 'AB': return 'G#';
+            case 'BB': return 'A#';
+            default: return root;
+        }
+    }
+
     transposeTune(tune, targetKey) {
-        // Find the original key's root shift to calculate relative transposition
-        const origRootMatch = tune.originalKey.match(/^[A-G][#b]?/i);
-        const origRoot = origRootMatch ? origRootMatch[0].toUpperCase() : 'C';
-        const origKeyObj = KEYS.find(k => k.name === origRoot);
+        // Normalize the original key root to match the KEYS array
+        const originalNormalizedRoot = this.normalizeKeyRoot(tune.originalKey);
+        const origKeyObj = KEYS.find(k => k.name === originalNormalizedRoot);
+        // Fallback to 0 if not found (should not happen with normalization for valid keys)
         const originalShift = origKeyObj ? origKeyObj.shift : 0;
 
-        // Compute structural shift semitones step interval relative to original key
-        let randomShift = targetKey.shift - originalShift;
+        // `targetKey` is already an object from the KEYS array, so its `shift` is correct.
+        let semitoneShift = targetKey.shift - originalShift;
 
-        // Keep shift within a shortest-distance octave range to prevent notes going too high/low
-        if (randomShift > 6) randomShift -= 12;
-        if (randomShift < -5) randomShift += 12;
+        // Keep shift within a shortest-distance octave range
+        if (semitoneShift > 6) semitoneShift -= 12;
+        if (semitoneShift < -5) semitoneShift += 12;
 
         const transposedMelody = tune.melody.map(note => {
             if (note === 'BAR' || note.type === 'BAR' || note.type === 'REPEAT_START' || note.type === 'REPEAT_END' || note.type === 'ENDING_1' || note.type === 'ENDING_2' || note.isRest) return note;
-            const transposedNote = { ...note, pitch: note.pitch + randomShift };
-            if (randomShift !== 0) {
-                delete transposedNote.stringNum;
+            const transposedNote = { ...note, pitch: note.pitch + semitoneShift };
+            if (semitoneShift !== 0) {
+                delete transposedNote.stringNum; // Remove string number hint if transposed
             }
             return transposedNote;
         });
 
         const transposedChords = tune.chords.map(chord => ({
             ...chord,
-            root: chord.root + randomShift
+            root: chord.root + semitoneShift
         }));
 
         // Dynamically compute key suffix descriptor string
         const isMinor = tune.originalKey.toLowerCase().includes('min') || tune.originalKey.toLowerCase().includes('m');
+        // Use targetKey.name for the root, and original tune's minor quality
         const keyDisplayName = `${targetKey.name}${isMinor ? 'm' : ''}`;
 
         return {
@@ -246,8 +261,29 @@ class AppController {
             timeSignature: tune.timeSignature || [4, 4],
             anacrouse: tune.anacrouse || 0,
             originalTempo: tune.originalTempo || 120,
-            visualTranspose: tune.visualTranspose || 0
+            visualTranspose: semitoneShift // Pass the actual semitone shift for visual rendering
         };
+    }
+
+
+    getKeySignature(key, isFlat) {
+        const sharpKeys = ["C", "D", "E", "F#", "G", "A", "B"];
+        const flatKeys = ["C", "D", "E", "F", "G", "A", "Bb"];
+
+        let shift = 0;
+        if (key === "C" || key === "C#") {
+            shift = 0;
+        } else if (isFlat) {
+            for (let i = 0; i < flatKeys.length; i++) {
+                if (flatKeys[i] === key) shift = -i;
+            }
+        } else {
+            for (let i = 0; i < sharpKeys.length; i++) {
+                if (sharpKeys[i] === key) shift = i;
+            }
+        }
+
+        return { shift };
     }
 
     shiftKey(direction) {
@@ -271,14 +307,15 @@ class AppController {
 
         this.stopPlayback();
 
-        // Extract absolute original key target
-        const origRootMatch = this.currentOriginalTune.originalKey.match(/^[A-G][#b]?/i);
-        const origRoot = origRootMatch ? origRootMatch[0].toUpperCase() : 'C';
-        const origIdx = KEYS.findIndex(k => k.name === origRoot);
+        // Use the new normalization helper to find the original key's index in KEYS
+        const originalNormalizedRoot = this.normalizeKeyRoot(this.currentOriginalTune.originalKey);
+        const origIdx = KEYS.findIndex(k => k.name === originalNormalizedRoot);
 
         if (origIdx !== -1) {
             this.currentTargetKeyIdx = origIdx;
             const targetKey = KEYS[this.currentTargetKeyIdx];
+            // `transposeTune` will now correctly calculate `visualTranspose` to 0
+            // when `targetKey` matches the tune's original key root.
             this.currentTransposedTune = this.transposeTune(this.currentOriginalTune, targetKey);
             this.tuneKey.textContent = `Key: ${this.currentTransposedTune.keyName}`;
             this.updateDisplay();
