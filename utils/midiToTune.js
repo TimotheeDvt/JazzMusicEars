@@ -48,7 +48,7 @@ function formatDuration(value) {
 // Helper to convert MIDI number to note name (e.g., 60 -> C4)
 function midiToNoteName(midi) {
     const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const octave = Math.floor(midi / 12) - 1;
+    const octave = Math.floor(midi / 12) + 1;
     const noteIndex = midi % 12;
     return `${noteNames[noteIndex]}${octave}`;
 }
@@ -101,7 +101,7 @@ function convertMidiToTune(midiFilePath, tuneId) {
     const tempo = midi.header.tempos.length > 0 ? Math.round(midi.header.tempos[0].bpm) : 120;
     let timeSig = [4, 4];
     if (midi.header.timeSignatures.length > 0) {
-        const ts = midi.header.timeSignatures[0].timeSignature;
+        const ts = midi.header.timeSignatures[midi.header.timeSignatures.length - 1].timeSignature;
         // Trust time signature only if denominator is 4 (e.g. 3/4, 4/4, 5/4), else default to 4/4
         if (ts[1] === 4) timeSig = ts;
     }
