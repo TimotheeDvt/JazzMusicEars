@@ -238,7 +238,7 @@ class AppController {
         const transposedMelody = tune.melody.map(note => {
             if (note === 'BAR' || note.type === 'BAR' || note.type === 'REPEAT_START' || note.type === 'REPEAT_END' || note.type === 'ENDING_1' || note.type === 'ENDING_2' || note.isRest) return note;
             const transposedNote = { ...note, pitch: note.pitch + semitoneShift };
-            if (semitoneShift !== 0) {
+            if (semitoneShift !== 0 || 1) {
                 delete transposedNote.stringNum; // Remove string number hint if transposed
             }
             return transposedNote;

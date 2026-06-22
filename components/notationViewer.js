@@ -1,3 +1,5 @@
+import { computeOptimalFretPositions } from '../services/fretboardOptimizer.js';
+
 /**
  * Custom Web Component: <notation-viewer>
  * Renders Standard Notation Clefs and Tablature via Dynamic SVG
@@ -560,6 +562,17 @@ export class NotationViewer extends HTMLElement {
             svgHtml += `<text x="${pos.x}" y="${pos.yOffset + 30}" class="chord-label">${name}</text>`;
         });
 
+        // -----------------------------------------------------------------------
+        // FRETBOARD OPTIMISATION
+        // Run the Viterbi DP over the *full* melody (not just visible notes) so
+        // that phrase context is always correct — even when only one note is shown.
+        // Tabs then look up positions from this map rather than calling midiToGuitar
+        // independently per note.
+        // -----------------------------------------------------------------------
+        const fretPositionMap = drawTabs
+            ? computeOptimalFretPositions(melody)
+            : new Map();
+
         // --- PRE-CALCULATE BEAMS AND POSITIONS ---
         let allComps = [];
         visibleNotes.forEach(note => {
@@ -571,6 +584,10 @@ export class NotationViewer extends HTMLElement {
                     c.pitch = note.pitch;
                     c.stringNum = note.stringNum;
                     c.staffPitch = note.pitch !== undefined ? note.pitch + (visualTranspose || 0) : undefined;
+                    // Attach the optimized guitar placement (keyed by note's position in melody array).
+                    // Falls back to the legacy lookup for any out-of-range pitch.
+                    const melodyIdx = melody.indexOf(note);
+                    c.guitar = fretPositionMap.has(melodyIdx) ? fretPositionMap.get(melodyIdx) : this.midiToGuitar(note.pitch, note.stringNum);
                     allComps.push(c);
                 });
             }
@@ -585,7 +602,7 @@ export class NotationViewer extends HTMLElement {
                     comp.staffY = comp.pos.yOffset + comp.staffInfo.y;
                 }
                 if (comp.pitch !== undefined) {
-                    comp.guitar = this.midiToGuitar(comp.pitch, comp.stringNum);
+                    // guitar is already set in CHANGE 3 above; compute tab Y from it
                     comp.tabY = comp.pos.yOffset + tabYOffset + ((comp.guitar.stringNum - 1) * 12);
                 }
             }
@@ -765,7 +782,8 @@ export class NotationViewer extends HTMLElement {
 
             const staffPitch = note.pitch + (visualTranspose || 0);
             const staffInfo = this.midiToStaffInfo(staffPitch, transposedKey);
-            const guitar = this.midiToGuitar(note.pitch, note.stringNum);
+            const melodyIdx = melody.indexOf(note);
+            const guitar = fretPositionMap.has(melodyIdx) ? fretPositionMap.get(melodyIdx) : this.midiToGuitar(note.pitch, note.stringNum);
             const noteStartPos = getPos(vBeat);
 
             // Draw Accidental (Once per actual note)
