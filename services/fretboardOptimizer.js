@@ -1,12 +1,10 @@
 /**
- * Fretboard Optimizer — Viterbi Dynamic Programming
+ * Fretboard Optimizer — Box-Anchored Viterbi Dynamic Programming (Sub-12th Fret Cap)
  *
- * Computes the globally optimal string/fret assignment for a melody sequence
- * by minimizing total positional movement across consecutive notes.
- *
- * Rather than assigning each note to the "first available" string (which
- * produces erratic position jumps), this algorithm treats the entire phrase
- * as a sequence and finds the assignment that minimizes total fret travel.
+ * Computes globally optimal string/fret assignments for a melody sequence
+ * by constraining positions into coherent, compact hand position frames
+ * resembling standard CAGED positions (typically spanning 4-5 frets),
+ * heavily prioritizing positions under the 12th fret.
  *
  * Standard EADGBE tuning, frets 0-15.
  */
@@ -18,7 +16,7 @@ const MAX_FRET = 15;
 
 /**
  * A rest gap larger than this (in beats) breaks a phrase, allowing the
- * optimizer to re-anchor its position for the next musical idea.
+ * optimizer to re-anchor its box position for the next musical idea.
  */
 const PHRASE_BREAK_BEATS = 3;
 
@@ -44,25 +42,71 @@ function getValidPlacements(midi) {
 
 /**
  * Transition cost between two consecutive fretboard positions.
- * Penalises fret travel (the dominant factor) and string crossings
- * (a minor ergonomic penalty, since adjacent-string shifts are easy).
+ * Penalizes large fret stretches outside the box context and balances string crossings.
  *
- * @param {{ stringNum: number, fret: number }} a
- * @param {{ stringNum: number, fret: number }} b
+ * @param {Object} a - Previous placement { stringNum, fret }
+ * @param {Object} b - Current placement { stringNum, fret }
  * @returns {number}
  */
 function transitionCost(a, b) {
-    const fretDistance   = Math.abs(a.fret - b.fret);
-    const stringDistance = Math.abs(a.stringNum - b.stringNum) * 0.3;
-    return fretDistance + stringDistance;
+    const fretDistance = Math.abs(a.fret - b.fret);
+    const stringDistance = Math.abs(a.stringNum - b.stringNum) * 0.4;
+
+    // Heavily penalize structural stretches exceeding standard 4-fret box widths
+    let boxStretchPenalty = 0;
+    if (fretDistance > 4) {
+        boxStretchPenalty = (fretDistance - 4) * 6;
+    }
+
+    return fretDistance + boxStretchPenalty + stringDistance;
+}
+
+/**
+ * Pre-scans a musical phrase to determine the optimal CAGED-like box position anchor fret.
+ * Restricts the core search window below the 12th fret to hold layouts in lower positions.
+ *
+ * @param {number[]} pitches
+ * @returns {number} - Optimal center fret for the hand position box
+ */
+function findOptimalBoxAnchor(pitches) {
+    let bestCenter = 5; // Default safe anchor (5th position)
+    let minTotalCost = Infinity;
+
+    // Constrain the box centers between frets 2 and 9. 
+    // An anchor center at 9 spans frets 7-11, keeping the entire pattern below fret 12.
+    for (let c = 2; c <= 9; c++) {
+        let currentCost = 0;
+
+        for (const midi of pitches) {
+            const placements = getValidPlacements(midi);
+            if (placements.length === 0) continue;
+
+            let bestPlacementDist = Infinity;
+            for (const p of placements) {
+                const dist = Math.abs(p.fret - c);
+                if (dist < bestPlacementDist) {
+                    bestPlacementDist = dist;
+                }
+            }
+
+            // Apply a non-linear penalty for notes forcing the player outside this 4-5 fret CAGED box
+            if (bestPlacementDist > 2) {
+                currentCost += (bestPlacementDist - 2) * 8;
+            }
+            currentCost += bestPlacementDist * 0.3; // Gentle weight for smooth centering
+        }
+
+        if (currentCost < minTotalCost) {
+            minTotalCost = currentCost;
+            bestCenter = c;
+        }
+    }
+    return bestCenter;
 }
 
 /**
  * Viterbi DP: find the minimum-cost string/fret sequence for a pitch array.
- *
- * The forward pass accumulates the minimum total cost to reach each
- * (noteIndex, placementIndex) state. The backward pass reconstructs the
- * optimal assignment.
+ * Incorporates static phrase box constraints and a hard penalty for frets >= 12.
  *
  * @param {number[]}        pitches       - MIDI pitches in temporal order
  * @param {(number|null)[]} forcedStrings - per-note string override (1-6) or null
@@ -71,16 +115,10 @@ function transitionCost(a, b) {
 function optimizeFretboard(pitches, forcedStrings) {
     if (pitches.length === 0) return [];
 
-    // Compute median fret of all "first-choice" placements so we can
-    // gently anchor the DP toward the phrase's natural register instead
-    // of drifting to open position by default.
-    const firstFrets = pitches.map(midi => {
-        const pts = getValidPlacements(midi);
-        return pts.length > 0 ? pts[0].fret : 0;
-    });
-    const medianFret = [...firstFrets].sort((a, b) => a - b)[Math.floor(firstFrets.length / 2)];
+    // Find the ideal compact hand position anchor below fret 12
+    const boxAnchor = findOptimalBoxAnchor(pitches);
 
-    // Build candidate placement lists, honouring forced-string hints.
+    // Build candidate placement lists, honoring forced-string hints.
     const allPlacements = pitches.map((midi, i) => {
         const forced = forcedStrings?.[i];
         if (forced != null) {
@@ -88,18 +126,27 @@ function optimizeFretboard(pitches, forcedStrings) {
             if (fret >= 0 && fret <= MAX_FRET) {
                 return [{ stringNum: forced, fret }];
             }
-            // Forced string is out of range for this pitch — fall through.
         }
         const pts = getValidPlacements(midi);
-        return pts.length > 0 ? pts : [{ stringNum: 1, fret: 0 }]; // last-resort fallback
+        return pts.length > 0 ? pts : [{ stringNum: 1, fret: 0 }]; // Fallback
     });
 
+    // Helper to calculate the baseline costs of a specific fret layout node configuration
+    const getFretStateCost = (placement) => {
+        const boxDeviation = Math.abs(placement.fret - boxAnchor);
+        let cost = (boxDeviation > 2 ? (boxDeviation - 2) * 5 : 0) + boxDeviation * 0.2;
+
+        // Add a severe penalty if the algorithm tries to stray into or past the 12th fret
+        if (placement.fret >= 12) {
+            cost += (placement.fret - 11) * 50;
+        }
+        return cost;
+    };
+
     // ---- Forward pass ----
-    // Seed with a small bias toward the phrase's median fret region so the
-    // algorithm anchors in the right register from the start.
     const dp = [
         allPlacements[0].map(placement => ({
-            cost: Math.abs(placement.fret - medianFret) * 0.15,
+            cost: getFretStateCost(placement),
             prev: -1,
         })),
     ];
@@ -109,8 +156,10 @@ function optimizeFretboard(pitches, forcedStrings) {
         const layer = allPlacements[i].map(curr => {
             let bestCost = Infinity;
             let bestPrev = 0;
+            const stateCost = getFretStateCost(curr);
+
             for (let k = 0; k < prevLayer.length; k++) {
-                const cost = prevLayer[k].cost + transitionCost(allPlacements[i - 1][k], curr);
+                const cost = prevLayer[k].cost + transitionCost(allPlacements[i - 1][k], curr) + stateCost;
                 if (cost < bestCost) {
                     bestCost = cost;
                     bestPrev = k;
@@ -139,28 +188,19 @@ function optimizeFretboard(pitches, forcedStrings) {
 /**
  * Compute optimal fretboard positions for every pitched note in a melody.
  *
- * The melody is segmented into phrases at rests longer than PHRASE_BREAK_BEATS;
- * the DP runs independently per phrase so the optimizer can re-anchor its
- * position after a significant pause in the music.
- *
- * Author-supplied `stringNum` hints (present on notes before transposition)
- * are passed into the DP as constraints; they are honoured when the requested
- * fret is within range and ignored gracefully otherwise.
- *
  * @param {Object[]} notes - melody array produced by parseMelodyString
  * @returns {Map<number, { stringNum: number, fret: number }>}
- *          Maps melody array index → optimal { stringNum, fret } placement
  */
 export function computeOptimalFretPositions(notes) {
-    const result    = new Map();
-    let phraseIdxs  = [];   // indices of pitched notes in the current phrase
-    let lastNoteEnd = 0;    // beat position where the last pitched note ended
+    const result = new Map();
+    let phraseIdxs = [];
+    let lastNoteEnd = 0;
 
     const flushPhrase = () => {
         if (phraseIdxs.length === 0) return;
 
-        const pitches    = phraseIdxs.map(i => notes[i].pitch);
-        const forced     = phraseIdxs.map(i => notes[i].stringNum ?? null);
+        const pitches = phraseIdxs.map(i => notes[i].pitch);
+        const forced = phraseIdxs.map(i => notes[i].stringNum ?? null);
         const placements = optimizeFretboard(pitches, forced);
 
         phraseIdxs.forEach((noteIdx, pi) => result.set(noteIdx, placements[pi]));
@@ -168,18 +208,16 @@ export function computeOptimalFretPositions(notes) {
     };
 
     notes.forEach((note, i) => {
-        // Skip structural markers, rests, and anything without a pitch.
         if (
-            note.isRest                    ||
-            note.pitch == null             ||
-            note.type === 'BAR'            ||
-            note.type === 'REPEAT_START'   ||
-            note.type === 'REPEAT_END'     ||
-            note.type === 'ENDING_1'       ||
+            note.isRest ||
+            note.pitch == null ||
+            note.type === 'BAR' ||
+            note.type === 'REPEAT_START' ||
+            note.type === 'REPEAT_END' ||
+            note.type === 'ENDING_1' ||
             note.type === 'ENDING_2'
         ) return;
 
-        // A gap longer than the threshold signals a new musical phrase.
         const gap = note.beat - lastNoteEnd;
         if (phraseIdxs.length > 0 && gap > PHRASE_BREAK_BEATS) {
             flushPhrase();
@@ -189,6 +227,6 @@ export function computeOptimalFretPositions(notes) {
         lastNoteEnd = note.beat + (note.duration ?? 0);
     });
 
-    flushPhrase(); // flush the final phrase
+    flushPhrase();
     return result;
 }
