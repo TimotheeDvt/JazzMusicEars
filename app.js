@@ -1,6 +1,7 @@
 import { jazzStandards, KEYS } from './data/tunes.js';
 import { audioEngine } from './services/audioEngine.js';
 import { Scheduler } from './services/scheduler.js';
+import './components/chordViewer.js';
 import './components/notationViewer.js';
 import './components/rotaryKnob.js';
 
@@ -21,16 +22,19 @@ class AppController {
         this.playheadAnimationId = null;
         this.currentBeat = 0;
         this.lastPlaybackMode = 'playing';
+        this.displayNotation = 'both';
 
         // Cache DOM Elements
         this.tuneKey = document.getElementById('tune-key');
         this.keyDownBtn = document.getElementById('key-down-btn');
         this.keyUpBtn = document.getElementById('key-up-btn');
         this.notationDisplay = document.getElementById('notation-display');
+        this.chordDisplay = document.getElementById('chord-display');
         this.tempoInput = document.getElementById('tempo');
         this.clickTrackCheckbox = document.getElementById('click-track');
         this.displayModeSelect = document.getElementById('display-mode');
         this.keyResetBtn = document.getElementById('key-reset-btn');
+        this.controlSection = document.getElementById("controls-card-2");
 
         // Buttons
         this.playBtn = document.getElementById('play-btn');
@@ -41,6 +45,7 @@ class AppController {
         this.nextTuneBtn = document.getElementById('next-tune-btn');
         this.closeModalBtn = document.getElementById('close-modal-btn');
         this.selectedTunesCountSpan = document.getElementById('selected-tunes-count');
+        this.displayNotationButton = document.getElementsByClassName('display-buttons');
 
         // Youtube Link Container
         this.ytContainer = document.getElementById('youtube-link-container');
@@ -131,6 +136,53 @@ class AppController {
             this.updateDisplay();
         });
 
+        for (let i = 0; i < this.displayNotationButton.length; i++) {
+            const b = this.displayNotationButton.item(i);
+            b.addEventListener('click', () => {
+                this.displayNotation = ["both", "chords"][i];
+                b.classList.add("active");
+                this.displayNotationButton[[1, 0][i]].classList.remove("active");
+
+                this.chordDisplay.style.display = ["none", ""][i]
+                this.notationDisplay.style.display = ["", "none"][i]
+
+                if (this.displayNotation == 'chords') {
+                    this.revealFirstBtn.disabled = true;
+                    this.revealMelodyBtn.disabled = true;
+                    this.revealChordsBtn.disabled = true;
+                    this.displayModeSelect.disabled = true;
+                    this.controlSection.classList.add('disabled');
+                } else {
+                    this.revealFirstBtn.disabled = false;
+                    this.revealMelodyBtn.disabled = false;
+                    this.revealChordsBtn.disabled = false;
+                    this.displayModeSelect.disabled = false;
+                    this.controlSection.classList.remove('disabled');
+                }
+            })
+
+            if (b.classList.contains("active")) {
+                this.displayNotation = ["both", "chords"][i];
+
+                this.chordDisplay.style.display = ["none", ""][i]
+                this.notationDisplay.style.display = ["", "none"][i]
+            }
+
+            if (this.displayNotation == 'chords') {
+                this.revealFirstBtn.disabled = true;
+                this.revealMelodyBtn.disabled = true;
+                this.revealChordsBtn.disabled = true;
+                this.displayModeSelect.disabled = true;
+                this.controlSection.classList.add('disabled');
+            } else {
+                this.revealFirstBtn.disabled = false;
+                this.revealMelodyBtn.disabled = false;
+                this.revealChordsBtn.disabled = false;
+                this.displayModeSelect.disabled = false;
+                this.controlSection.classList.remove('disabled');
+            }
+        }
+
         // Modal triggers
         this.manageTunesBtn.addEventListener('click', () => this.tuneModal.classList.remove('hidden'));
         this.closeModalBtn.addEventListener('click', () => {
@@ -155,6 +207,7 @@ class AppController {
             } else {
                 this.activePlayback = 'paused';
                 this.notationDisplay.setPlayhead(beat);
+                this.chordDisplay.setPlayhead(beat);
             }
         });
 
@@ -335,7 +388,8 @@ class AppController {
         audioEngine.stopAll();
         clearTimeout(this.playbackTimeout);
         cancelAnimationFrame(this.playheadAnimationId);
-        if (this.notationDisplay && typeof this.notationDisplay.setPlayhead === 'function') {
+        if (this.notationDisplay || this.chordDisplay) {
+            this.chordDisplay.setPlayhead(null);
             this.notationDisplay.setPlayhead(null);
         }
         this.activePlayback = null;
@@ -393,6 +447,7 @@ class AppController {
             this.currentBeat = currentBeat;
 
             if (this.notationDisplay) this.notationDisplay.setPlayhead(currentBeat);
+            if (this.chordDisplay) this.chordDisplay.setPlayhead(currentBeat);
 
             if (isLoop || currentBeat < totalBeats) {
                 this.playheadAnimationId = requestAnimationFrame(animate);
@@ -414,6 +469,7 @@ class AppController {
         if (!targetTuneId) {
             this.tuneKey.textContent = "Key: --";
             this.notationDisplay.updateData("No Tunes Selected!", "C", [], []);
+            this.chordDisplay.updateData("No Tunes Selected!", "C", [], []);
             return;
         }
 
@@ -452,6 +508,7 @@ class AppController {
         } catch (err) {
             console.error(`Failed to load tune: ${targetTuneId}`, err);
             this.tuneKey.textContent = "Key: --";
+            this.chordDisplay.updateData("Error loading tune", "C", [], []);
             this.notationDisplay.updateData("Error loading tune", "C", [], []);
         }
     }
@@ -488,6 +545,20 @@ class AppController {
             this.displayMode,
             this.currentTransposedTune.visualTranspose
         );
+
+        this.chordDisplay.updateData(
+            this.currentTransposedTune.title,
+            this.currentTransposedTune.keyName,
+            this.currentTransposedTune.melody,
+            this.currentTransposedTune.chords,
+            this.revealMelodyState,
+            true,
+            this.currentTransposedTune.timeSignature,
+            this.currentTransposedTune.anacrouse,
+            this.displayMode,
+            this.currentTransposedTune.visualTranspose
+        );
+
     }
 
     exportConfidenceData() {

@@ -15,6 +15,10 @@
 <body>
     <header>
         <h1>Jazz Standard Ear Trainer</h1>
+        <div id="display-selector">
+            <button class="display-buttons btn">Both</button>
+            <button class="display-buttons btn active">Chords Only</button>
+        </div>
         <div id="setup-panel" class="panel">
             <button id="manage-tunes-btn" class="btn secondary">Select Tunes</button>
             <span id="selected-tunes-count" style="margin-left: 10px; font-weight: bold;">(0 selected)</span>
@@ -45,6 +49,7 @@
                     </div>
                 </div>
                 <notation-viewer id="notation-display"></notation-viewer>
+                <chord-viewer id="chord-display" style="display: none;"></chord-viewer>
             </section>
         </div>
 
@@ -74,7 +79,7 @@
                 </div>
             </section>
 
-            <section id="controls-card" class="card">
+            <section id="controls-card-2" class="card">
                 <select id="display-mode" class="display-mode-select" style="width: 100%; margin: 0 0 10px 0;">
                     <option value="both">Staff & Tabs</option>
                     <option value="staff">Staff Only</option>
