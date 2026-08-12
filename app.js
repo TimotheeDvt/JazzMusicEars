@@ -24,6 +24,7 @@ class AppController {
         this.currentBeat = 0;
         this.lastPlaybackMode = 'playing';
         this.displayNotation = 'both';
+        this.playToken = 0;
 
         // Cache DOM Elements
         this.tuneKey = document.getElementById('tune-key');
@@ -377,6 +378,7 @@ class AppController {
     }
 
     pausePlayback() {
+        this.playToken++;
         audioEngine.stopAll();
         clearTimeout(this.playbackTimeout);
         cancelAnimationFrame(this.playheadAnimationId);
@@ -385,6 +387,7 @@ class AppController {
     }
 
     stopPlayback() {
+        this.playToken++;
         audioEngine.stopAll();
         clearTimeout(this.playbackTimeout);
         cancelAnimationFrame(this.playheadAnimationId);
@@ -402,29 +405,32 @@ class AppController {
     async seekAndPlay(startBeat, mode = 'playing') {
         if (!this.currentTransposedTune) return;
 
+        const myToken = ++this.playToken;
+        this.lastPlaybackMode = mode;
+        this.currentBeat = startBeat;
+        this.activePlayback = mode;
+        this.playBtn.textContent = "Pause";
+        if (mode === 'playing') {
+            this.toggleChordsBtn.textContent = "Loop Chords: OFF";
+            this.toggleChordsBtn.classList.remove('primary');
+        } else if (mode === 'chords') {
+            this.toggleChordsBtn.textContent = "Stop Chords 🔄";
+            this.toggleChordsBtn.classList.add('primary');
+        }
+
         await audioEngine.ensureRunning();
+        if (myToken !== this.playToken) return; // superseded while we were waiting
 
         audioEngine.stopAll();
         clearTimeout(this.playbackTimeout);
         cancelAnimationFrame(this.playheadAnimationId);
 
-        this.lastPlaybackMode = mode;
-        this.currentBeat = startBeat;
-
         if (mode === 'playing') {
-            this.activePlayback = 'playing';
-            this.playBtn.textContent = "Pause";
-            this.toggleChordsBtn.textContent = "Loop Chords: OFF";
-            this.toggleChordsBtn.classList.remove('primary');
             const duration = audioEngine.playBoth(this.currentTransposedTune.melody, this.currentTransposedTune.chords, startBeat);
             const totalBeats = (duration / audioEngine.secPerBeat) + startBeat;
             this.startPlayhead(startBeat, totalBeats, false);
             this.playbackTimeout = setTimeout(() => this.stopPlayback(), duration * 1000);
         } else if (mode === 'chords') {
-            this.activePlayback = 'chords';
-            this.playBtn.textContent = "Pause";
-            this.toggleChordsBtn.textContent = "Stop Chords 🔄";
-            this.toggleChordsBtn.classList.add('primary');
             const totalBeats = audioEngine.startChordsLoop(this.currentTransposedTune.chords, startBeat);
             if (totalBeats > 0) {
                 this.startPlayhead(startBeat, totalBeats, true);
