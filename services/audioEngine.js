@@ -105,6 +105,14 @@ class AudioEngine {
     }
 
     playTone(midi, startTime, duration, type = "piano", volume = 0.3, outputNode = null) {
+        try {
+            this._scheduleTone(midi, startTime, duration, type, volume, outputNode);
+        } catch (e) {
+            console.error(`playTone failed (midi=${midi}, startTime=${startTime}, duration=${duration}, type=${type}):`, e);
+        }
+    }
+
+    _scheduleTone(midi, startTime, duration, type, volume, outputNode) {
         this.init();
         const dest = outputNode || this.ctx.destination;
 
@@ -296,7 +304,7 @@ class AudioEngine {
             "13": [0, 4, 7, 10, 14, 17]
         };
         if (!voicings[type])
-            alert("Unknown chord type: " + type)
+            console.warn("Unknown chord type: " + type)
         const intervals = voicings[type] || [0, 7]; // default to 5 chord
         return intervals.map(interval => root + interval);
     }
