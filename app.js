@@ -1,4 +1,5 @@
 import { jazzStandards, KEYS } from './data/tunes.js';
+import { loadTune } from './data/abcTuneLoader.js';
 import { audioEngine } from './services/audioEngine.js';
 import { Scheduler } from './services/scheduler.js';
 import './components/chordViewer.js';
@@ -234,8 +235,7 @@ class AppController {
         this.tuneCheckboxList.innerHTML = '';
         for (const id of jazzStandards) {
             try {
-                const module = await import(`./data/tuneFiles/${id}.js`);
-                const tune = module.tune;
+                const tune = await loadTune(id);
                 const label = document.createElement('label');
                 label.style.display = 'block';
                 label.innerHTML = `
@@ -474,8 +474,7 @@ class AppController {
         }
 
         try {
-            const module = await import(`./data/tuneFiles/${targetTuneId}.js`);
-            const targetTune = module.tune;
+            const targetTune = await loadTune(targetTuneId);
 
             this.currentOriginalTune = targetTune;
 

@@ -18,53 +18,88 @@ function parseDuration(str) {
     return parseFloat(str);
 }
 
-// Helper to convert simple text notation into melody arrays
-// Format: "NoteOctave:Duration" -> e.g., "C4:1 D4:0.5 Eb4:1 | G4:5"
+export function getKeyAccidentals(key) {
+    const normalizedKey = key.replace(/maj/i, '').replace(/min/i, 'm');
+    const keyMap = {
+        "C": 0, "Am": 0, "G": 1, "Em": 1, "D": 2, "Bm": 2,
+        "A": 3, "F#m": 3, "E": 4, "C#m": 4, "B": 5, "G#m": 5, "F#": 6,
+        "F": -1, "Dm": -1, "A#": -2, "Gm": -2, "D#": -3, "Cm": -3,
+        "G#": -4, "Fm": -4, "C#": -5, "A#m": -5, "D#m": -6
+    };
+    const sig = keyMap[normalizedKey] || 0;
+    const acc = {};
+    if (sig > 0) {
+        const sharps = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+        for (let i = 0; i < sig; i++) acc[sharps[i]] = '#';
+    } else if (sig < 0) {
+        const flats = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
+        for (let i = 0; i < Math.abs(sig); i++) acc[flats[i]] = 'b';
+    }
+    return acc;
+}
+
+export function noteNameToPitch(letter, acc, octave, keyAccs) {
+    letter = letter.toUpperCase();
+    if (!acc) {
+        if (keyAccs[letter]) acc = keyAccs[letter];
+    } else if (acc.toLowerCase() === 'n') {
+        acc = ''; // Natural overrides key signature
+    }
+    const notes = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+    let pitch = notes[letter] + (octave + 1) * 12;
+    if (acc === '#') pitch += 1;
+    if (acc === 'b') pitch -= 1;
+    return pitch;
+}
+
+export function unrollRepeats(rawElements) {
+    const out = [];
+    let repeatStartIdx = -1;
+    let ending1StartIdx = -1;
+    let audioBeat = 0;
+    for (let i = 0; i < rawElements.length; i++) {
+        let el = rawElements[i];
+        if (el.type === 'REPEAT_START') {
+            repeatStartIdx = i + 1;
+            ending1StartIdx = -1;
+            out.push({ ...el, beat: audioBeat });
+        } else if (el.type === 'ENDING_1') {
+            ending1StartIdx = i;
+            out.push({ ...el, beat: audioBeat });
+        } else if (el.type === 'ENDING_2') {
+            out.push({ ...el, beat: audioBeat });
+        } else if (el.type === 'REPEAT_END') {
+            out.push({ ...el, beat: audioBeat });
+            let endOfCommon = (ending1StartIdx !== -1) ? ending1StartIdx : i;
+            let copy = rawElements.slice(repeatStartIdx, endOfCommon);
+            for (let c of copy) {
+                let newEl = { ...c, isRepeat: true, beat: audioBeat };
+                out.push(newEl);
+                if (c.duration) audioBeat += c.duration;
+            }
+            repeatStartIdx = -1;
+            ending1StartIdx = -1;
+        } else {
+            let newEl = { ...el, beat: audioBeat };
+            out.push(newEl);
+            if (el.duration) audioBeat += el.duration;
+        }
+    }
+    return out;
+}
+
 export function parseMelodyString(melodyStr, keyName = "C") {
     const tokens = melodyStr.trim().split(/\s+/);
     const rawElements = [];
     let visualBeat = 0;
-
-    const getKeyAccidentals = (key) => {
-        const normalizedKey = key.replace(/maj/i, '').replace(/min/i, 'm');
-        const keyMap = {
-            "C": 0, "Am": 0, "G": 1, "Em": 1, "D": 2, "Bm": 2,
-            "A": 3, "F#m": 3, "E": 4, "C#m": 4, "B": 5, "G#m": 5, "F#": 6,
-            "F": -1, "Dm": -1, "A#": -2, "Gm": -2, "D#": -3, "Cm": -3,
-            "G#": -4, "Fm": -4, "C#": -5, "A#m": -5, "D#m": -6
-        };
-        const sig = keyMap[normalizedKey] || 0;
-        const acc = {};
-        if (sig > 0) {
-            const sharps = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
-            for (let i = 0; i < sig; i++) acc[sharps[i]] = '#';
-        } else if (sig < 0) {
-            const flats = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
-            for (let i = 0; i < Math.abs(sig); i++) acc[flats[i]] = 'b';
-        }
-        return acc;
-    };
 
     const keyAccs = getKeyAccidentals(keyName);
 
     const noteToMidi = (noteStr) => {
         const match = noteStr.match(/^([A-G])([#bn]?)(-?\d+)$/i);
         if (!match) return null;
-        let [, note, acc, oct] = match;
-        note = note.toUpperCase();
-
-        // Apply key signature if no explicit accidental was provided
-        if (!acc) {
-            if (keyAccs[note]) acc = keyAccs[note];
-        } else if (acc.toLowerCase() === 'n') {
-            acc = ''; // Natural overrides key signature
-        }
-
-        const notes = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-        let pitch = notes[note] + (parseInt(oct) + 1) * 12;
-        if (acc === '#') pitch += 1;
-        if (acc === 'b') pitch -= 1;
-        return pitch;
+        const [, note, acc, oct] = match;
+        return noteNameToPitch(note, acc, parseInt(oct), keyAccs);
     };
 
     for (const token of tokens) {
@@ -141,41 +176,7 @@ export function parseMelodyString(melodyStr, keyName = "C") {
         }
     }
 
-    // Unroll repeats to generate linear audio beats
-    const melody = [];
-    let repeatStartIdx = -1;
-    let ending1StartIdx = -1;
-    let audioBeat = 0;
-    for (let i = 0; i < rawElements.length; i++) {
-        let el = rawElements[i];
-        if (el.type === 'REPEAT_START') {
-            repeatStartIdx = i + 1;
-            ending1StartIdx = -1;
-            melody.push({ ...el, beat: audioBeat });
-        } else if (el.type === 'ENDING_1') {
-            ending1StartIdx = i;
-            melody.push({ ...el, beat: audioBeat });
-        } else if (el.type === 'ENDING_2') {
-            melody.push({ ...el, beat: audioBeat });
-        } else if (el.type === 'REPEAT_END') {
-            melody.push({ ...el, beat: audioBeat });
-            let endOfCommon = (ending1StartIdx !== -1) ? ending1StartIdx : i;
-            let copy = rawElements.slice(repeatStartIdx, endOfCommon);
-            for (let c of copy) {
-                let newEl = { ...c, isRepeat: true, beat: audioBeat };
-                melody.push(newEl);
-                if (c.duration) audioBeat += c.duration;
-            }
-            repeatStartIdx = -1;
-            ending1StartIdx = -1;
-        } else {
-            let newEl = { ...el, beat: audioBeat };
-            melody.push(newEl);
-            if (el.duration) audioBeat += el.duration;
-        }
-    }
-
-    return melody;
+    return unrollRepeats(rawElements);
 }
 
 // Helper to convert simple text notation into chord arrays
@@ -229,39 +230,5 @@ export function parseChordsString(chordStr) {
         }
     }
 
-    // Unroll repeats for chords
-    const chords = [];
-    let repeatStartIdx = -1;
-    let ending1StartIdx = -1;
-    let audioBeat = 0;
-    for (let i = 0; i < rawElements.length; i++) {
-        let el = rawElements[i];
-        if (el.type === 'REPEAT_START') {
-            repeatStartIdx = i + 1;
-            ending1StartIdx = -1;
-            chords.push({ ...el, beat: audioBeat });
-        } else if (el.type === 'ENDING_1') {
-            ending1StartIdx = i;
-            chords.push({ ...el, beat: audioBeat });
-        } else if (el.type === 'ENDING_2') {
-            chords.push({ ...el, beat: audioBeat });
-        } else if (el.type === 'REPEAT_END') {
-            chords.push({ ...el, beat: audioBeat });
-            let endOfCommon = (ending1StartIdx !== -1) ? ending1StartIdx : i;
-            let copy = rawElements.slice(repeatStartIdx, endOfCommon);
-            for (let c of copy) {
-                let newEl = { ...c, isRepeat: true, beat: audioBeat };
-                chords.push(newEl);
-                if (c.duration) audioBeat += c.duration;
-            }
-            repeatStartIdx = -1;
-            ending1StartIdx = -1;
-        } else {
-            let newEl = { ...el, beat: audioBeat };
-            chords.push(newEl);
-            if (el.duration) audioBeat += el.duration;
-        }
-    }
-
-    return chords.filter(c => !c.isRest && c.root !== undefined);
+    return unrollRepeats(rawElements).filter(c => !c.isRest && c.root !== undefined);
 }

@@ -1,4 +1,5 @@
 import { computeOptimalFretPositions } from '../services/fretboardOptimizer.js';
+import { parseKeyName, chordToScaleDegree } from '../utils/musicTheory.js';
 
 /**
  * Custom Web Component: <notation-viewer>
@@ -549,6 +550,7 @@ export class NotationViewer extends HTMLElement {
         const sharpRoots = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
         const flatRoots = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
         const chordRoots = useFlats ? flatRoots : sharpRoots;
+        const { tonicPC, isMinor } = parseKeyName(transposedKey);
 
         visibleChords.forEach((chord) => {
             if (chord.isRepeat) return;
@@ -558,8 +560,9 @@ export class NotationViewer extends HTMLElement {
 
             let displayRoot = chord.root + (visualTranspose || 0);
             displayRoot = ((displayRoot % 12) + 12) % 12;
-            const name = chordRoots[displayRoot] + chord.type;
-            svgHtml += `<text x="${pos.x}" y="${pos.yOffset + 30}" class="chord-label">${name}</text>`;
+            const plainName = chordRoots[displayRoot] + chord.type;
+            const romanLabel = chordToScaleDegree(displayRoot, chord.type, tonicPC, isMinor);
+            svgHtml += `<text x="${pos.x}" y="${pos.yOffset + 30}" class="chord-label">${romanLabel}<title>${plainName}</title></text>`;
         });
 
         // -----------------------------------------------------------------------

@@ -1,3 +1,5 @@
+import { parseKeyName, chordToScaleDegree } from '../utils/musicTheory.js';
+
 /**
  * Custom Web Component: <chord-viewer>
  * Renders a clean, grid-based Jazz Chord Chart with a proportional playhead fill.
@@ -190,6 +192,7 @@ export class ChordViewer extends HTMLElement {
 
         this.measures = [];
         const chordRoots = this.getChordRoots();
+        const { tonicPC, isMinor } = parseKeyName(key);
 
         // Separate and render the Anacrouse as inline small text banner
         if (anacrouse > 0) {
@@ -203,17 +206,22 @@ export class ChordViewer extends HTMLElement {
             // Keep tracking structure intact for playhead highlighting
             this.measures.push({ index: -1, startBeat: 0, endBeat: anacrouse, isAnacrouse: true });
 
-            const chordStr = pickupChords.length > 0 
+            const pickupPlainNames = pickupChords.map(chord => {
+                let displayRoot = chord.root;
+                displayRoot = ((displayRoot % 12) + 12) % 12;
+                return chordRoots[displayRoot] + chord.type;
+            });
+            const chordStr = pickupChords.length > 0
                 ? pickupChords.map(chord => {
-                    let displayRoot = chord.root;
-                    displayRoot = ((displayRoot % 12) + 12) % 12;
-                    return chordRoots[displayRoot] + chord.type;
+                    let displayRoot = ((chord.root % 12) + 12) % 12;
+                    return chordToScaleDegree(displayRoot, chord.type, tonicPC, isMinor);
                 }).join('  ')
-                : 'N.C.'; 
+                : 'N.C.';
 
             const textBlock = document.createElement('div');
             textBlock.className = 'anacrouse-text';
             textBlock.id = 'anacrouse-cell';
+            if (pickupPlainNames.length > 0) textBlock.title = pickupPlainNames.join('  ');
             // Dynamically show the exact number of beats in the pickup heading
             textBlock.innerHTML = `Pickup (${anacrouse} beat${anacrouse > 1 ? 's' : ''}): <span class="anacrouse-chords">${chordStr}</span>`;
 
@@ -265,7 +273,8 @@ export class ChordViewer extends HTMLElement {
 
                     let displayRoot = chord.root;
                     displayRoot = ((displayRoot % 12) + 12) % 12;
-                    chordItem.textContent = chordRoots[displayRoot] + chord.type;
+                    chordItem.textContent = chordToScaleDegree(displayRoot, chord.type, tonicPC, isMinor);
+                    chordItem.title = chordRoots[displayRoot] + chord.type;
 
                     chordsContainer.appendChild(chordItem);
                 });
