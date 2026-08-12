@@ -98,6 +98,8 @@ export function parseAbc(rawAbc) {
         if (el.el_type !== 'note') continue;
 
         let stringNum = null;
+        let chordOctave = null;
+        const chordSymbols = [];
         if (el.chord) {
             for (const rawC of el.chord) {
                 const name = unmangleChordName(rawC.name);
@@ -106,15 +108,21 @@ export function parseAbc(rawAbc) {
                     stringNum = parseInt(stringMatch[1], 10);
                     continue;
                 }
+                const octaveMatch = name.match(/^O(\d+)$/);
+                if (octaveMatch) {
+                    chordOctave = parseInt(octaveMatch[1], 10);
+                    continue;
+                }
                 if (/^N\.?C\.?$/i.test(name)) {
                     rawChords.push({ isRest: true, visualBeat });
                     continue;
                 }
                 const parsed = splitChordSymbol(name);
-                if (parsed) {
-                    const root = noteNameToPitch(parsed.letter, parsed.acc || undefined, 4, {});
-                    rawChords.push({ root, type: parsed.type, visualBeat });
-                }
+                if (parsed) chordSymbols.push(parsed);
+            }
+            for (const parsed of chordSymbols) {
+                const root = noteNameToPitch(parsed.letter, parsed.acc || undefined, chordOctave ?? 3, {});
+                rawChords.push({ root, type: parsed.type, visualBeat });
             }
         }
 
