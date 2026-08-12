@@ -61,6 +61,18 @@ class AudioEngine {
         }
     }
 
+    // Must be awaited before scheduling: a freshly-created context can stay 'suspended' in some browsers, freezing currentTime and anchoring notes to a clock that jumps to the past once it wakes.
+    async ensureRunning() {
+        this.init();
+        if (this.ctx.state !== 'running') {
+            try {
+                await this.ctx.resume();
+            } catch (e) {
+                console.warn('AudioContext failed to resume', e);
+            }
+        }
+    }
+
     // Helper to map MIDI to raw frequency
     midiToFreq(midi) {
         return 440 * Math.pow(2, (midi - 69) / 12);

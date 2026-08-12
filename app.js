@@ -399,8 +399,10 @@ class AppController {
         this.toggleChordsBtn.classList.remove('primary');
     }
 
-    seekAndPlay(startBeat, mode = 'playing') {
+    async seekAndPlay(startBeat, mode = 'playing') {
         if (!this.currentTransposedTune) return;
+
+        await audioEngine.ensureRunning();
 
         audioEngine.stopAll();
         clearTimeout(this.playbackTimeout);
